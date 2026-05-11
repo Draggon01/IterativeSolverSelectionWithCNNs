@@ -1,0 +1,82 @@
+services:
+
+  # Step 1: Generate training data (run once, output lands in ./data/)
+  datagen:
+    build: .
+    container_name: solver_datagen
+    command: python generate_data.py
+    volumes:
+      - ./data:/workspace/data
+      - ../src/model.py:/workspace/model.py
+      - ../src/generate_data.py:/workspace/generate_data.py
+    environment:
+      - N_SAMPLES=10000
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: "4"
+
+  # Step 2: Train the CNN+MLP solver-selection classifier
+  trainer:
+    build: .
+    container_name: solver_trainer
+    command: python train_solver_selector.py
+    volumes:
+      - ./data:/workspace/data
+      - ./checkpoints:/workspace/checkpoints
+      - ./logs:/workspace/logs
+      - ../src/model.py:/workspace/model.py
+      - ../src/train_solver_selector.py:/workspace/train_solver_selector.py
+    environment:
+      - MAX_EPOCHS=100
+      - BATCH_SIZE=256
+      - LEARNING_RATE=0.0003
+      - CHECKPOINT_EVERY=5
+      - KEEP_LAST_N=3
+      - DEVICE=auto
+    depends_on:
+      - datagen
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: "4"
+        # Uncomment for GPU:
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: all
+        #       capabilities: [gpu]
+
+  # Step 3: Run inference on a new matrix  (also used for benchmark_solvers.py)
+  predict:
+    build: .
+    container_name: solver_predict
+    command: python predict.py
+    volumes:
+      - ./checkpoints:/workspace/checkpoints
+      - ./data:/workspace/data
+      - ../src/model.py:/workspace/model.py
+      - ../src/generate_data.py:/workspace/generate_data.py
+      - ../src/predict.py:/workspace/predict.py
+      - ../src/benchmark_solvers.py:/workspace/benchmark_solvers.py
+    environment:
+      - DEVICE=auto
+      # MATRIX_PATH=/workspace/data/my_matrix.npz  # override to use a saved matrix
+      # BENCHMARK_T=30                              # per-solver timeout for benchmark
+    depends_on:
+      - trainer
+
+  # TensorBoard: live loss + accuracy curves
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    container_name: solver_tensorboard
+    command: tensorboard --logdir=/logs --host=0.0.0.0
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./logs:/logs
+    depends_on:
+      - trainer
