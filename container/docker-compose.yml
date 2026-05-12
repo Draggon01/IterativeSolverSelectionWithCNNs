@@ -17,6 +17,28 @@ services:
           memory: 8g
           cpus: "4"
 
+  # Step 1b: Ingest SuiteSparse matrices (optional, appends to ./data/dataset.h5)
+  ingest:
+    build: .
+    container_name: solver_ingest
+    command: python ingest_suitesparse.py
+    volumes:
+      - ./data:/workspace/data
+      - ../src/model.py:/workspace/model.py
+      - ../src/ingest_suitesparse.py:/workspace/ingest_suitesparse.py
+    environment:
+      - MODE=auto           # auto (ssgetpy) or manual (MTX_DIR)
+      - MIN_N=100
+      - MAX_N=50000
+      - N_MATRICES=200
+      - ONLY_SPD=0
+      # - MTX_DIR=/workspace/data/mtx   # for manual mode
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: "4"
+
   # Step 2: Train the CNN+MLP solver-selection classifier
   trainer:
     build: .
@@ -62,6 +84,9 @@ services:
       - ../src/generate_data.py:/workspace/generate_data.py
       - ../src/predict.py:/workspace/predict.py
       - ../src/benchmark_solvers.py:/workspace/benchmark_solvers.py
+      - ../src/visualize.py:/workspace/visualize.py
+      - ../src/browse_data.py:/workspace/browse_data.py
+      - ./viz:/workspace/viz
     environment:
       - DEVICE=auto
       # MATRIX_PATH=/workspace/data/my_matrix.npz  # override to use a saved matrix

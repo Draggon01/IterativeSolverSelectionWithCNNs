@@ -191,22 +191,32 @@ def best_solver_label(
     A: sp.csr_matrix,
     b: np.ndarray,
     mat_type: str,
-) -> int | None:
+) -> tuple[int | None, np.ndarray, np.ndarray]:
     """
-    Run all applicable solvers and return the SOLVER_IDX of the fastest
-    to converge, or None if no solver converges.
+    Run all applicable solvers and return (label, runtimes, top3) where:
+      label    — SOLVER_IDX of the fastest converging solver, or None
+      runtimes — float32 (N_SOLVERS,); NaN where solver did not converge
+      top3     — int8 (3,); indices of the 3 fastest converging solvers,
+                 ranked by wall time; -1 where fewer than k solvers converged
     """
-    times: dict[str, float] = {}
+    all_times: np.ndarray = np.full(N_SOLVERS, np.nan, dtype=np.float32)
+    converged: dict[str, float] = {}
     for solver in APPLICABLE[mat_type]:
         ok, iters, t = run_ksp(A, b, solver)
         if ok:
-            times[solver] = t
+            converged[solver] = t
+            all_times[SOLVER_IDX[solver]] = float(t)
         log.debug("  %-8s  ok=%-5s  iters=%-4d  t=%.4fs", solver, ok, iters, t)
 
-    if not times:
-        return None
-    winner = min(times, key=times.get)
-    return SOLVER_IDX[winner]
+    top3 = np.full(3, -1, dtype=np.int8)
+    if not converged:
+        return None, all_times, top3
+
+    ranked = sorted(converged.items(), key=lambda x: x[1])
+    for i, (solver, _) in enumerate(ranked[:3]):
+        top3[i] = SOLVER_IDX[solver]
+
+    return int(top3[0]), all_times, top3
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -237,24 +247,39 @@ def main() -> None:
             "labels", shape=(0,), maxshape=(None,),
             dtype="i4", chunks=(256,),
         )
+        ds_times = f.create_dataset(
+            "runtimes", shape=(0, N_SOLVERS), maxshape=(None, N_SOLVERS),
+            dtype="f4", chunks=(256, N_SOLVERS),
+        )
+        ds_src = f.create_dataset(
+            "source", shape=(0,), maxshape=(None,),
+            dtype=h5py.string_dtype(), chunks=(256,),
+        )
+        ds_top3 = f.create_dataset(
+            "top3_labels", shape=(0, 3), maxshape=(None, 3),
+            dtype="i1", chunks=(256, 3),
+        )
         f.attrs["solvers"] = SOLVERS
 
         while saved < N_SAMPLES:
             A, mat_type = sample_matrix(rng)
             b           = rng.standard_normal(A.shape[0])
 
-            label = best_solver_label(A, b, mat_type)
+            label, solver_times, top3 = best_solver_label(A, b, mat_type)
             if label is None:
                 skipped += 1
                 log.warning("No solver converged (skipped=%d); trying next sample.", skipped)
                 continue
 
             # Grow datasets and append
-            for ds in (ds_img, ds_feat, ds_lbl):
+            for ds in (ds_img, ds_feat, ds_lbl, ds_times, ds_src, ds_top3):
                 ds.resize(saved + 1, axis=0)
-            ds_img[saved]  = sparsity_image(A)
-            ds_feat[saved] = matrix_features(A)
-            ds_lbl[saved]  = label
+            ds_img[saved]    = sparsity_image(A)
+            ds_feat[saved]   = matrix_features(A)
+            ds_lbl[saved]    = label
+            ds_times[saved]  = solver_times
+            ds_src[saved]    = f"synthetic/{mat_type}"
+            ds_top3[saved]   = top3
 
             label_counts[label] += 1
             saved += 1
