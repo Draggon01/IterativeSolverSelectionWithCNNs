@@ -1,0 +1,19 @@
+# Core scientific stack
+numpy>=2.0
+scipy>=1.11
+h5py>=3.9
+
+# Deep learning
+torch>=2.2
+
+# Visualisation & monitoring
+matplotlib>=3.8
+tensorboard>=2.14
+
+# SuiteSparse matrix downloader (used by mm_ingest.py and src/ingest_suitesparse.py)
+ssgetpy>=1.0
+
+# PETSc Python bindings — install after PETSc itself is available on the system.
+# Easiest via pip with the bundled build:
+#   pip install petsc==3.25.1 petsc4py==3.25.1 --no-build-isolation
+petsc4py>=3.20

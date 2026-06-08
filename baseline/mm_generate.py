@@ -102,8 +102,10 @@ def mm_sample_matrix(rng: "np.random.Generator") -> "tuple[sp.csr_matrix, str]":
         d = float(rng.uniform(0.02, 0.08))
         return random_nonsymmetric(n, d, rng), "nonsym"
     elif choice == 3:
-        n = int(rng.integers(5000, 60000))
-        d = float(rng.uniform(0.0005, 0.005))
+        n = int(rng.integers(5000, 30000))
+        # Keep NNZ/row in [10, 40] regardless of n to avoid memory crashes
+        nnz_per_row = float(rng.uniform(10, 40))
+        d = nnz_per_row / n
         return large_nonsymmetric(n, d, rng), "nonsym"
     elif choice == 4:
         nx = int(rng.integers(10, 50))
