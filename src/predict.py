@@ -20,7 +20,7 @@ import torch
 
 from model import (
     matrix_features, sparsity_image,
-    SOLVERS, load_checkpoint,
+    SOLVER_NAMES, load_checkpoint,
     SolverSelectorNet,
 )
 
@@ -37,21 +37,25 @@ DEVICE = torch.device(
 
 # ── inference ─────────────────────────────────────────────────────────────────
 
-def predict_solver(model: SolverSelectorNet, A: sp.csr_matrix) -> tuple[str, np.ndarray]:
+def predict_solver(
+    model: SolverSelectorNet,
+    A: sp.csr_matrix,
+    image_mode: str = "binary",
+) -> tuple[str, np.ndarray]:
     """
     Return (recommended_solver_name, probability_array).
 
-    probability_array[i] corresponds to SOLVERS[i].
+    probability_array[i] corresponds to SOLVER_NAMES[i].
     """
     feat = torch.from_numpy(matrix_features(A)).unsqueeze(0).to(DEVICE)
-    img  = torch.from_numpy(sparsity_image(A)).unsqueeze(0).unsqueeze(0).to(DEVICE)
+    img  = torch.from_numpy(sparsity_image(A, mode=image_mode)).unsqueeze(0).unsqueeze(0).to(DEVICE)
 
     with torch.no_grad():
         logits = model(img, feat)
 
     probs     = torch.softmax(logits, dim=1).squeeze().cpu().numpy()
     best_idx  = int(probs.argmax())
-    return SOLVERS[best_idx], probs
+    return SOLVER_NAMES[best_idx], probs
 
 
 # ── example matrix (fallback when MATRIX_PATH is not set) ─────────────────────
@@ -85,14 +89,16 @@ def main() -> None:
             mat_type, A.shape, A.nnz,
         )
 
-    solver, probs = predict_solver(model, A)
+    image_mode = ckpt.get("image_mode", "binary")
+    solver, probs = predict_solver(model, A, image_mode)
 
-    print("\nSolver probabilities:")
-    for name, p in sorted(zip(SOLVERS, probs), key=lambda x: -x[1]):
+    print(f"\nImage mode: {image_mode}")
+    print("Solver probabilities (top 10):")
+    for name, p in sorted(zip(SOLVER_NAMES, probs), key=lambda x: -x[1])[:10]:
         bar = "█" * int(p * 30)
-        print(f"  {name:<8s}  {p:.4f}  {bar}")
+        print(f"  {name:<14s}  {p:.4f}  {bar}")
 
-    print(f"\nRecommended solver: {solver.upper()}\n")
+    print(f"\nRecommended: {solver}\n")
 
 
 if __name__ == "__main__":

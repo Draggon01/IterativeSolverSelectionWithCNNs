@@ -171,7 +171,7 @@ Produces four figures:
 |---|---|
 | `01_dataset_overview.png` | Label distribution, size/density histograms, box plots |
 | `02_sparsity_gallery.png` | 24 example sparsity patterns coloured by best solver |
-| `03_feature_distributions.png` | All 8 features split by best solver |
+| `03_feature_distributions.png` | All 14 features split by best solver |
 | `04_predictions.png` | Confusion matrix, per-solver accuracy, probability heatmap |
 
 ### Step 6 — Interactive matrix browser
@@ -229,14 +229,137 @@ Enable GPU by uncommenting the `deploy.resources.reservations` block in
 
 | Dataset | Shape | dtype | Description |
 |---|---|---|---|
-| `images` | (N, 64, 64) | float32 | Binary sparsity-pattern image |
-| `features` | (N, 8) | float32 | Scalar matrix statistics |
-| `labels` | (N,) | int32 | Index of best solver |
-| `top3_labels` | (N, 3) | int8 | Top-3 solver indices ranked by time; -1 = no rank |
-| `runtimes` | (N, N_SOLVERS) | float32 | Per-solver wall time in seconds; NaN = no data |
+| `images` | (N, 64, 64) | float32 | Sparsity-pattern image (encoding set by `IMAGE_MODE`) |
+| `features` | (N, 14) | float32 | Scalar matrix statistics (see feature list below) |
+| `labels` | (N,) | int32 | Index of best (KSP, PC) pair |
+| `top3_labels` | (N, 3) | int8 | Top-3 pair indices ranked by wall time; -1 = no rank |
+| `runtimes` | (N, N_SOLVERS) | float32 | Per-pair wall time in seconds; NaN = no data |
 | `source` | (N,) | str | Origin, e.g. `synthetic/poisson2d`, `suitesparse/HB/bcsstk01` |
 
-Attribute `solvers` on the root group gives the ordered solver name list.
+Root attributes: `solvers` (ordered list of 30 `ksp+pc` names), `image_mode` (encoding used).
+
+### Feature vector (14 elements)
+
+| # | Name | Description |
+|---|---|---|
+| 0 | `log(n)` | Log-scaled matrix dimension |
+| 1 | `log(nnz)` | Log-scaled non-zero count |
+| 2 | `density` | Fill ratio nnz / n² |
+| 3 | `symmetry` | ‖A − Aᵀ‖_F / ‖A‖_F — 0 = symmetric |
+| 4 | `diag dom.` | Mean \|diag\| / row sum (diagonal dominance) |
+| 5 | `Frob/n` | Size-normalised Frobenius norm |
+| 6 | `trace/n` | Size-normalised trace |
+| 7 | `max/mean` | Max absolute entry / mean absolute entry |
+| 8 | `spectral rad.` | log(1 + spectral radius estimate, power iteration) |
+| 9 | `log cond.` | log(1 + max\|diag\| / min\|diag\|) — condition proxy |
+| 10 | `bandwidth/n` | Max \|i − j\| over all non-zeros, normalised |
+| 11 | `diag nnz frac` | Fraction of non-zero diagonal entries |
+| 12 | `row norm CV` | Coefficient of variation of row norms |
+| 13 | `offdiag Frob` | ‖A − D‖_F / ‖A‖_F — off-diagonal energy fraction |
+
+---
+
+## Experiments
+
+Each experiment changes one variable, regenerates data, and trains a fresh model.
+Compare runs using `val_acc` in TensorBoard (`tensorboard --logdir=./logs`).
+
+### Experiment A — Image encoding
+
+Controls how the sparse matrix is compressed into the 64×64 CNN input image.
+
+| `IMAGE_MODE` | Pixel value | What the CNN sees |
+|---|---|---|
+| `binary` | 0 or 1 | Only position of non-zeros |
+| `density` | count / block area | How many non-zeros per region |
+| `log_density` | log(1 + count), normalised | Density with compressed dynamic range |
+| `magnitude` | mean \|value\|, normalised | Magnitude of entries per region |
+
+```bash
+# Run all four — each writes to a separate data and checkpoint directory
+for MODE in binary density log_density magnitude; do
+  IMAGE_MODE=$MODE N_SAMPLES=10000 DATA_DIR=./data/$MODE python generate_data.py
+  IMAGE_MODE=$MODE DATA_DIR=./data/$MODE CHECKPOINT_DIR=./checkpoints/$MODE \
+    LOG_DIR=./logs/$MODE MAX_EPOCHS=200 python train_solver_selector.py
+done
+
+# Compare in TensorBoard
+tensorboard --logdir=./logs   # open http://localhost:6006
+```
+
+Expected result: `log_density` and `density` outperform `binary` for large matrices
+because the CNN can see how *dense* each region is, not just whether it is occupied.
+
+---
+
+### Experiment B — Feature ablation
+
+Train on the full 14-feature vector, then retrain with reduced sets to see which
+features matter most.  Edit `matrix_features()` in `model.py` to zero out or remove
+individual features, or add new ones (e.g. exact eigenvalues via
+`scipy.sparse.linalg.eigs`).
+
+```bash
+# Baseline — all 14 features
+DATA_DIR=./data CHECKPOINT_DIR=./checkpoints/full_features \
+  LOG_DIR=./logs/full_features python train_solver_selector.py
+
+# Check which features correlate with label in the browser
+DATA_DIR=./data python browse_data.py   # → [View] → Features panel
+```
+
+The features most likely to matter for solver selection:
+- `spectral rad.` and `log cond.` — directly determine Krylov convergence rates
+- `symmetry` — determines which KSP types are applicable
+- `diag dom.` + `bandwidth/n` — determine how effective ILU/ICC preconditioners are
+
+---
+
+### Experiment C — Dataset composition
+
+Compare models trained on different data sources.
+
+```bash
+# Synthetic only (fast, reproducible)
+N_SAMPLES=50000 DATA_DIR=./data/synthetic python generate_data.py
+
+# SuiteSparse only (real-world, download required)
+MODE=auto N_MATRICES=500 DATA_DIR=./data/suitesparse python ingest_suitesparse.py
+
+# Mixed — generate synthetic first, then append SuiteSparse
+N_SAMPLES=50000 DATA_DIR=./data/mixed python generate_data.py
+MODE=auto N_MATRICES=500 DATA_DIR=./data/mixed python ingest_suitesparse.py
+```
+
+Train and compare `val_acc` across the three datasets.  A model trained only on
+synthetic data that generalises well to SuiteSparse matrices validates that the
+synthetic generators capture the relevant structural variation.
+
+---
+
+### Experiment D — Solver + preconditioner label space
+
+The label space is 30 `(KSP, PC)` pairs (6 solvers × 5 preconditioners).
+To compare against the simpler 6-solver baseline, check out an earlier commit
+before the preconditioner expansion, regenerate data, and train.
+
+Alternatively, collapse predictions back to KSP type only at inference time
+to measure how often the model picks the right *solver family* regardless of
+which preconditioner it recommends:
+
+```python
+from model import SOLVER_PAIRS, SOLVER_NAMES
+import numpy as np
+
+# probs is the (30,) output of predict_solver()
+ksp_probs = {}
+for i, (ksp, pc) in enumerate(SOLVER_PAIRS):
+    ksp_probs[ksp] = ksp_probs.get(ksp, 0.0) + probs[i]
+
+best_ksp = max(ksp_probs, key=ksp_probs.get)
+print("Best KSP family:", best_ksp)
+print("Best pair:      ", SOLVER_NAMES[np.argmax(probs)])
+```
 
 ---
 

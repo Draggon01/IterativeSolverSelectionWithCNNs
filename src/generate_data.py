@@ -31,7 +31,7 @@ from petsc4py import PETSc
 
 from model import (
     matrix_features, sparsity_image,
-    SOLVERS, SOLVER_IDX, N_SOLVERS, N_FEATURES, IMAGE_SIZE,
+    SOLVER_PAIRS, SOLVER_NAMES, SOLVER_IDX, N_SOLVERS, N_FEATURES, IMAGE_SIZE, IMAGE_MODE,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -44,13 +44,18 @@ MAX_ITER  = int(os.getenv("MAX_ITER",  "2000"))
 TOL       = float(os.getenv("TOL",     "1e-8"))
 SEED      = int(os.getenv("SEED",      "42"))
 
-# Solvers valid for each matrix type.
-# CG requires SPD; MINRES requires symmetry; the rest are general.
-APPLICABLE: dict[str, list[str]] = {
-    "spd":       SOLVERS,
-    "poisson2d": SOLVERS,
-    "poisson3d": SOLVERS,
-    "nonsym":    ["gmres", "bicg", "bcgs", "tfqmr"],
+# (KSP, PC) pairs valid for each matrix type.
+# SPD: all 30 pairs (CG+ICC and MINRES+ICC are valid).
+# Non-symmetric: CG and MINRES excluded; ICC excluded (requires SPD).
+_SPD_PAIRS = SOLVER_PAIRS
+_GEN_PAIRS = [p for p in SOLVER_PAIRS
+              if p[0] in {"gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"]
+
+APPLICABLE: dict[str, list[tuple[str, str]]] = {
+    "spd":       _SPD_PAIRS,
+    "poisson2d": _SPD_PAIRS,
+    "poisson3d": _SPD_PAIRS,
+    "nonsym":    _GEN_PAIRS,
 }
 
 
@@ -149,6 +154,7 @@ def run_ksp(
     A: sp.csr_matrix,
     b: np.ndarray,
     ksp_type: str,
+    pc_type: str = "none",
 ) -> tuple[bool, int, float]:
     """
     Solve A x = b with the given PETSc KSP type on a single process.
@@ -167,6 +173,7 @@ def run_ksp(
     ksp = PETSc.KSP().create(PETSc.COMM_SELF)
     ksp.setOperators(mat)
     ksp.setType(ksp_type)
+    ksp.getPC().setType(pc_type)
     ksp.setTolerances(rtol=TOL, atol=1e-50, divtol=1e5, max_it=MAX_ITER)
 
     t0 = time.perf_counter()
@@ -200,21 +207,23 @@ def best_solver_label(
                  ranked by wall time; -1 where fewer than k solvers converged
     """
     all_times: np.ndarray = np.full(N_SOLVERS, np.nan, dtype=np.float32)
-    converged: dict[str, float] = {}
-    for solver in APPLICABLE[mat_type]:
-        ok, iters, t = run_ksp(A, b, solver)
+    converged: dict[tuple, float] = {}
+    for pair in APPLICABLE[mat_type]:
+        ksp_type, pc_type = pair
+        ok, iters, t = run_ksp(A, b, ksp_type, pc_type)
         if ok:
-            converged[solver] = t
-            all_times[SOLVER_IDX[solver]] = float(t)
-        log.debug("  %-8s  ok=%-5s  iters=%-4d  t=%.4fs", solver, ok, iters, t)
+            converged[pair] = t
+            all_times[SOLVER_IDX[pair]] = float(t)
+        log.debug("  %-8s+%-8s  ok=%-5s  iters=%-4d  t=%.4fs",
+                  ksp_type, pc_type, ok, iters, t)
 
     top3 = np.full(3, -1, dtype=np.int8)
     if not converged:
         return None, all_times, top3
 
     ranked = sorted(converged.items(), key=lambda x: x[1])
-    for i, (solver, _) in enumerate(ranked[:3]):
-        top3[i] = SOLVER_IDX[solver]
+    for i, (pair, _) in enumerate(ranked[:3]):
+        top3[i] = SOLVER_IDX[pair]
 
     return int(top3[0]), all_times, top3
 
@@ -259,7 +268,8 @@ def main() -> None:
             "top3_labels", shape=(0, 3), maxshape=(None, 3),
             dtype="i1", chunks=(256, 3),
         )
-        f.attrs["solvers"] = SOLVERS
+        f.attrs["solvers"]    = SOLVER_NAMES
+        f.attrs["image_mode"] = IMAGE_MODE
 
         while saved < N_SAMPLES:
             A, mat_type = sample_matrix(rng)
@@ -288,7 +298,7 @@ def main() -> None:
 
     log.info("Saved %d samples to %s  (skipped=%d)", saved, out_path, skipped)
     log.info("Label distribution: %s",
-             {SOLVERS[i]: int(label_counts[i]) for i in range(N_SOLVERS)})
+             {SOLVER_NAMES[i]: int(label_counts[i]) for i in range(N_SOLVERS)})
 
 
 if __name__ == "__main__":

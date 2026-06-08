@@ -30,7 +30,7 @@ import numpy as np
 import scipy.sparse as sp
 from petsc4py import PETSc
 
-from model import SOLVERS, SOLVER_IDX, matrix_features
+from model import SOLVER_PAIRS, SOLVER_NAMES, matrix_features
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -46,11 +46,11 @@ RESULTS_PATH = os.getenv("RESULTS_PATH",  "")
 
 @dataclass
 class SolverResult:
-    solver:    str
+    solver:    str          # "ksp+pc" display name
     converged: bool
     iterations: int
-    wall_time:  float     # seconds; inf if timed-out or errored
-    residual:   float     # final relative residual norm
+    wall_time:  float       # seconds; inf if timed-out or errored
+    residual:   float       # final relative residual norm
 
 
 # ── PETSc solve with thread-based timeout ─────────────────────────────────────
@@ -66,8 +66,9 @@ def _csr_to_petsc(A: sp.csr_matrix) -> PETSc.Mat:
     return mat
 
 
-def _solve(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> SolverResult:
+def _solve(A: sp.csr_matrix, b: np.ndarray, ksp_type: str, pc_type: str) -> SolverResult:
     """Blocking PETSc solve; called inside a worker thread for timeout support."""
+    name = f"{ksp_type}+{pc_type}"
     mat = _csr_to_petsc(A)
     x   = mat.createVecRight()
     rhs = mat.createVecLeft()
@@ -77,6 +78,7 @@ def _solve(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> SolverResult:
     ksp = PETSc.KSP().create(PETSc.COMM_SELF)
     ksp.setOperators(mat)
     ksp.setType(ksp_type)
+    ksp.getPC().setType(pc_type)
     ksp.setTolerances(rtol=TOL, atol=1e-50, divtol=1e5, max_it=MAX_ITER)
     ksp.setConvergenceHistory()
 
@@ -87,11 +89,10 @@ def _solve(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> SolverResult:
         converged = ksp.getConvergedReason() > 0
         iters     = ksp.getIterationNumber()
 
-        # Compute true relative residual ‖b − Ax‖ / ‖b‖
         x_arr = x.getArray().copy()
         res   = float(np.linalg.norm(b - A @ x_arr) / (np.linalg.norm(b) + 1e-12))
     except Exception as exc:
-        log.debug("KSP %s raised: %s", ksp_type, exc)
+        log.debug("%s raised: %s", name, exc)
         elapsed, converged, iters, res = float("inf"), False, -1, float("inf")
     finally:
         ksp.destroy()
@@ -99,41 +100,43 @@ def _solve(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> SolverResult:
         x.destroy()
         rhs.destroy()
 
-    return SolverResult(ksp_type, converged, iters, elapsed, res)
+    return SolverResult(name, converged, iters, elapsed, res)
 
 
 def run_solver_timed(
     A: sp.csr_matrix,
     b: np.ndarray,
     ksp_type: str,
+    pc_type: str,
     timeout: float = BENCHMARK_T,
 ) -> SolverResult:
     """Run _solve in a thread; return a timed-out result if it exceeds timeout."""
+    name = f"{ksp_type}+{pc_type}"
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        future = ex.submit(_solve, A, b, ksp_type)
+        future = ex.submit(_solve, A, b, ksp_type, pc_type)
         try:
             return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
-            log.warning("  %s timed out after %.1fs", ksp_type, timeout)
-            return SolverResult(ksp_type, False, -1, float("inf"), float("inf"))
+            log.warning("  %s timed out after %.1fs", name, timeout)
+            return SolverResult(name, False, -1, float("inf"), float("inf"))
 
 
 # ── benchmark ─────────────────────────────────────────────────────────────────
 
 def benchmark(A: sp.csr_matrix, b: np.ndarray) -> list[SolverResult]:
-    """Run all solvers and return results sorted by wall time (converged first)."""
+    """Run all (KSP, PC) pairs and return results sorted by wall time (converged first)."""
     PETSc.Options()["ksp_error_if_not_converged"] = False
 
     results: list[SolverResult] = []
-    for solver in SOLVERS:
-        log.info("Running %-8s ...", solver)
-        r = run_solver_timed(A, b, solver)
+    for ksp_type, pc_type in SOLVER_PAIRS:
+        name = f"{ksp_type}+{pc_type}"
+        log.info("Running %-16s ...", name)
+        r = run_solver_timed(A, b, ksp_type, pc_type)
         results.append(r)
         status = f"converged in {r.iterations} iters  t={r.wall_time:.3f}s  res={r.residual:.2e}" \
                  if r.converged else "DID NOT CONVERGE"
-        log.info("  %-8s  %s", solver, status)
+        log.info("  %-16s  %s", name, status)
 
-    # Sort: converged solvers by time, then non-converged
     return sorted(results, key=lambda r: (not r.converged, r.wall_time))
 
 
@@ -141,16 +144,16 @@ def print_table(results: list[SolverResult], A: sp.csr_matrix) -> None:
     feats = matrix_features(A)
     print(f"\nMatrix: shape={A.shape}  nnz={A.nnz}  "
           f"density={feats[2]:.4f}  symmetry={feats[3]:.4f}")
-    print(f"\n{'Solver':<10} {'Converged':<11} {'Iterations':<12} "
+    print(f"\n{'Solver':<16} {'Converged':<11} {'Iterations':<12} "
           f"{'Time (s)':<12} {'Residual':<12} {'Rank'}")
-    print("-" * 65)
+    print("-" * 72)
     rank = 1
     for r in results:
         conv_str = "YES" if r.converged else "NO"
         t_str    = f"{r.wall_time:.4f}" if r.wall_time < 1e9 else "timeout"
         res_str  = f"{r.residual:.2e}"  if r.residual  < 1e9 else "—"
         rank_str = str(rank) if r.converged else "—"
-        print(f"{r.solver:<10} {conv_str:<11} {r.iterations:<12} "
+        print(f"{r.solver:<16} {conv_str:<11} {r.iterations:<12} "
               f"{t_str:<12} {res_str:<12} {rank_str}")
         if r.converged:
             rank += 1

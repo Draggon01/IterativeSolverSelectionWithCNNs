@@ -42,7 +42,7 @@ from petsc4py import PETSc
 
 from model import (
     matrix_features, sparsity_image,
-    SOLVERS, SOLVER_IDX, N_SOLVERS, N_FEATURES, IMAGE_SIZE,
+    SOLVER_PAIRS, SOLVER_NAMES, SOLVER_IDX, N_SOLVERS, N_FEATURES, IMAGE_SIZE, IMAGE_MODE,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -61,11 +61,18 @@ MAX_ITER   = int(os.getenv("MAX_ITER",    "2000"))
 TOL        = float(os.getenv("TOL",       "1e-8"))
 SEED       = int(os.getenv("SEED",        "0"))
 
-# Solvers applicable per matrix type (mirrors generate_data.py)
-APPLICABLE = {
-    "spd":    SOLVERS,
-    "sym":    ["gmres", "bicg", "bcgs", "tfqmr", "minres"],
-    "nonsym": ["gmres", "bicg", "bcgs", "tfqmr"],
+# (KSP, PC) pairs applicable per matrix type.
+# sym: MINRES valid (symmetric), CG excluded (not SPD), ICC excluded (requires SPD).
+_SPD_PAIRS = SOLVER_PAIRS
+_SYM_PAIRS = [p for p in SOLVER_PAIRS
+              if p[0] in {"minres", "gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"]
+_GEN_PAIRS = [p for p in SOLVER_PAIRS
+              if p[0] in {"gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"]
+
+APPLICABLE: dict[str, list[tuple[str, str]]] = {
+    "spd":    _SPD_PAIRS,
+    "sym":    _SYM_PAIRS,
+    "nonsym": _GEN_PAIRS,
 }
 
 
@@ -162,7 +169,7 @@ def _csr_to_petsc(A: sp.csr_matrix) -> PETSc.Mat:
     return mat
 
 
-def run_ksp(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> tuple[bool, int, float]:
+def run_ksp(A: sp.csr_matrix, b: np.ndarray, ksp_type: str, pc_type: str = "none") -> tuple[bool, int, float]:
     mat = _csr_to_petsc(A)
     x   = mat.createVecRight()
     rhs = mat.createVecLeft()
@@ -172,6 +179,7 @@ def run_ksp(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> tuple[bool, int, 
     ksp = PETSc.KSP().create(PETSc.COMM_SELF)
     ksp.setOperators(mat)
     ksp.setType(ksp_type)
+    ksp.getPC().setType(pc_type)
     ksp.setTolerances(rtol=TOL, atol=1e-50, divtol=1e5, max_it=MAX_ITER)
 
     t0 = time.perf_counter()
@@ -181,7 +189,7 @@ def run_ksp(A: sp.csr_matrix, b: np.ndarray, ksp_type: str) -> tuple[bool, int, 
         converged = ksp.getConvergedReason() > 0
         iters     = ksp.getIterationNumber()
     except Exception as exc:
-        log.debug("KSP %s raised: %s", ksp_type, exc)
+        log.debug("KSP %s+%s raised: %s", ksp_type, pc_type, exc)
         elapsed, converged, iters = float("inf"), False, -1
     finally:
         ksp.destroy(); mat.destroy(); x.destroy(); rhs.destroy()
@@ -200,21 +208,23 @@ def benchmark(
       top3     — int8 (3,), indices ranked by wall time, -1 if fewer than k converged
     """
     all_times = np.full(N_SOLVERS, np.nan, dtype=np.float32)
-    converged: dict[str, float] = {}
-    for solver in APPLICABLE[mat_type]:
-        ok, iters, t = run_ksp(A, b, solver)
+    converged: dict[tuple, float] = {}
+    for pair in APPLICABLE[mat_type]:
+        ksp_type, pc_type = pair
+        ok, iters, t = run_ksp(A, b, ksp_type, pc_type)
         if ok:
-            converged[solver] = t
-            all_times[SOLVER_IDX[solver]] = float(t)
-        log.debug("  %-8s  ok=%-5s  iters=%-4d  t=%.4fs", solver, ok, iters, t)
+            converged[pair] = t
+            all_times[SOLVER_IDX[pair]] = float(t)
+        log.debug("  %-8s+%-8s  ok=%-5s  iters=%-4d  t=%.4fs",
+                  ksp_type, pc_type, ok, iters, t)
 
     top3 = np.full(3, -1, dtype=np.int8)
     if not converged:
         return None, all_times, top3
 
     ranked = sorted(converged.items(), key=lambda x: x[1])
-    for i, (solver, _) in enumerate(ranked[:3]):
-        top3[i] = SOLVER_IDX[solver]
+    for i, (pair, _) in enumerate(ranked[:3]):
+        top3[i] = SOLVER_IDX[pair]
 
     return int(top3[0]), all_times, top3
 
@@ -249,7 +259,9 @@ def open_or_create_dataset(path: str) -> h5py.File:
             dtype="i1", chunks=(256, 3))
 
     if "solvers" not in f.attrs:
-        f.attrs["solvers"] = SOLVERS
+        f.attrs["solvers"] = SOLVER_NAMES
+    if "image_mode" not in f.attrs:
+        f.attrs["image_mode"] = IMAGE_MODE
 
     # Backfill 'source' for rows written by old generate_data.py (no source field)
     n_rows = len(f["labels"])
@@ -315,8 +327,8 @@ def ingest_matrix(
 
     append_sample(f, A, label, times, top3, source)
     log.info("  Saved  best=%s  times_ms=%s",
-             SOLVERS[label],
-             {SOLVERS[i]: f"{times[i]*1000:.1f}" for i in range(N_SOLVERS)
+             SOLVER_NAMES[label],
+             {SOLVER_NAMES[i]: f"{times[i]*1000:.1f}" for i in range(N_SOLVERS)
               if not np.isnan(times[i])})
     return True
 

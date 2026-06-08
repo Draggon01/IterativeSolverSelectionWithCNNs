@@ -27,7 +27,9 @@ import matplotlib.patches as mpatches
 import h5py
 import torch
 
-from model import SOLVERS, N_SOLVERS, N_FEATURES, load_checkpoint, SolverSelectorNet
+from model import SOLVER_PAIRS, SOLVER_NAMES, N_SOLVERS, N_FEATURES, load_checkpoint, SolverSelectorNet
+
+SOLVERS = SOLVER_NAMES   # alias for display code
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -44,12 +46,17 @@ DEVICE         = torch.device(
     ("cuda" if torch.cuda.is_available() else "cpu") if _dev == "auto" else _dev
 )
 
-PALETTE = plt.cm.tab10(np.linspace(0, 0.9, N_SOLVERS))
-SOLVER_COLOR = {s: PALETTE[i] for i, s in enumerate(SOLVERS)}
+# Color by KSP type so CG variants, GMRES variants, etc. share a color.
+_KSP_TYPES   = ["cg", "minres", "gmres", "bicg", "bcgs", "tfqmr"]
+_KSP_PALETTE = plt.cm.tab10(np.linspace(0, 0.6, len(_KSP_TYPES)))
+_KSP_COLOR   = {k: _KSP_PALETTE[i] for i, k in enumerate(_KSP_TYPES)}
+SOLVER_COLOR = {name: _KSP_COLOR[ksp] for name, (ksp, _) in zip(SOLVER_NAMES, SOLVER_PAIRS)}
 
 FEATURE_NAMES = [
     "log(n)", "log(nnz)", "density", "symmetry score",
     "diag dominance", "Frobenius/n", "trace/n", "max/mean abs",
+    "spectral radius", "log cond. est.", "bandwidth/n",
+    "diag nnz frac", "row norm CV", "offdiag Frob frac",
 ]
 
 
@@ -75,9 +82,11 @@ def save_fig(fig: plt.Figure, name: str) -> None:
 
 
 def solver_legend(fig: plt.Figure, y: float = 0.01) -> None:
-    patches = [mpatches.Patch(color=SOLVER_COLOR[s], label=s) for s in SOLVERS]
-    fig.legend(handles=patches, loc="lower center", ncol=N_SOLVERS,
-               fontsize=9, frameon=True, bbox_to_anchor=(0.5, y))
+    # One patch per KSP type (6 entries) keeps the legend compact.
+    patches = [mpatches.Patch(color=_KSP_COLOR[k], label=k) for k in _KSP_TYPES]
+    fig.legend(handles=patches, loc="lower center", ncol=len(_KSP_TYPES),
+               fontsize=9, frameon=True, bbox_to_anchor=(0.5, y),
+               title="KSP type (colour group)")
 
 
 # ── figure 1: dataset overview ────────────────────────────────────────────────
@@ -93,71 +102,55 @@ def fig_dataset_overview(
     # Label distribution
     ax = axes[0, 0]
     counts = np.bincount(labels, minlength=N_SOLVERS)
-    bars   = ax.bar(SOLVERS, counts, color=[SOLVER_COLOR[s] for s in SOLVERS])
-    ax.bar_label(bars)
+    bars   = ax.bar(range(N_SOLVERS), counts, color=[SOLVER_COLOR[s] for s in SOLVERS])
+    ax.bar_label(bars, fontsize=6)
     ax.set_title("Solver Label Distribution")
     ax.set_xlabel("Best solver"); ax.set_ylabel("Count")
+    ax.set_xticks(range(N_SOLVERS))
+    ax.set_xticklabels(SOLVERS, rotation=90, ha="center", fontsize=6)
 
-    # Matrix size distribution (feature 0 = log(n), back-transform to n)
+    # Matrix size distribution — group by KSP type for readability
     ax = axes[0, 1]
-    for i, s in enumerate(SOLVERS):
-        mask = labels == i
+    for ksp in _KSP_TYPES:
+        mask = np.array([SOLVER_PAIRS[int(l)][0] == ksp for l in labels])
         if mask.any():
             ax.hist(np.expm1(features[mask, 0]), bins=30, alpha=0.55,
-                    label=s, color=SOLVER_COLOR[s])
+                    label=ksp, color=_KSP_COLOR[ksp])
     ax.set_title("Matrix Size Distribution")
     ax.set_xlabel("n  (matrix dimension)"); ax.set_ylabel("Count")
     ax.legend(fontsize=7)
 
-    # Density distribution (feature 2)
+    # Density distribution — group by KSP type
     ax = axes[0, 2]
-    for i, s in enumerate(SOLVERS):
-        mask = labels == i
+    for ksp in _KSP_TYPES:
+        mask = np.array([SOLVER_PAIRS[int(l)][0] == ksp for l in labels])
         if mask.any():
             ax.hist(features[mask, 2], bins=30, alpha=0.55,
-                    label=s, color=SOLVER_COLOR[s])
+                    label=ksp, color=_KSP_COLOR[ksp])
     ax.set_title("Fill Ratio (Density)")
     ax.set_xlabel("nnz / n²"); ax.set_ylabel("Count")
     ax.legend(fontsize=7)
 
-    # Symmetry score by solver (box plot)
-    ax = axes[1, 0]
-    bp = ax.boxplot(
-        [features[labels == i, 3] for i in range(N_SOLVERS)],
-        labels=SOLVERS, patch_artist=True,
-        flierprops=dict(marker=".", markersize=3, alpha=0.4),
-    )
-    for patch, s in zip(bp["boxes"], SOLVERS):
-        patch.set_facecolor(SOLVER_COLOR[s]); patch.set_alpha(0.8)
-    ax.set_title("Symmetry Score by Best Solver")
-    ax.set_xlabel("Solver"); ax.set_ylabel("0 = symmetric  →  1 = asymmetric")
-    ax.grid(axis="y", alpha=0.3)
+    def _boxplot(ax, feat_col, title, ylabel):
+        bp = ax.boxplot(
+            [features[labels == i, feat_col] for i in range(N_SOLVERS)],
+            patch_artist=True,
+            flierprops=dict(marker=".", markersize=2, alpha=0.3),
+        )
+        for patch, s in zip(bp["boxes"], SOLVERS):
+            patch.set_facecolor(SOLVER_COLOR[s]); patch.set_alpha(0.8)
+        ax.set_title(title)
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(range(1, N_SOLVERS + 1))
+        ax.set_xticklabels(SOLVERS, rotation=90, ha="center", fontsize=5)
+        ax.grid(axis="y", alpha=0.3)
 
-    # Diagonal dominance by solver
-    ax = axes[1, 1]
-    bp = ax.boxplot(
-        [features[labels == i, 4] for i in range(N_SOLVERS)],
-        labels=SOLVERS, patch_artist=True,
-        flierprops=dict(marker=".", markersize=3, alpha=0.4),
-    )
-    for patch, s in zip(bp["boxes"], SOLVERS):
-        patch.set_facecolor(SOLVER_COLOR[s]); patch.set_alpha(0.8)
-    ax.set_title("Diagonal Dominance by Best Solver")
-    ax.set_xlabel("Solver"); ax.set_ylabel("mean( |diag| / Σ|row| )")
-    ax.grid(axis="y", alpha=0.3)
-
-    # Normalised Frobenius norm by solver
-    ax = axes[1, 2]
-    bp = ax.boxplot(
-        [features[labels == i, 5] for i in range(N_SOLVERS)],
-        labels=SOLVERS, patch_artist=True,
-        flierprops=dict(marker=".", markersize=3, alpha=0.4),
-    )
-    for patch, s in zip(bp["boxes"], SOLVERS):
-        patch.set_facecolor(SOLVER_COLOR[s]); patch.set_alpha(0.8)
-    ax.set_title("Normalised Frobenius Norm by Best Solver")
-    ax.set_xlabel("Solver"); ax.set_ylabel("‖A‖_F / n")
-    ax.grid(axis="y", alpha=0.3)
+    _boxplot(axes[1, 0], 3, "Symmetry Score by Best Solver",
+             "0 = symmetric  →  1 = asymmetric")
+    _boxplot(axes[1, 1], 4, "Diagonal Dominance by Best Solver",
+             "mean( |diag| / Σ|row| )")
+    _boxplot(axes[1, 2], 5, "Normalised Frobenius Norm by Best Solver",
+             "‖A‖_F / n")
 
     plt.tight_layout()
     return fig
@@ -214,19 +207,20 @@ def fig_feature_distributions(
     features: np.ndarray,
     labels: np.ndarray,
 ) -> plt.Figure:
-    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    fig, axes = plt.subplots(3, 5, figsize=(20, 11))
     fig.suptitle("Feature Distributions by Best Solver", fontsize=14, fontweight="bold")
 
     for fi, (ax, name) in enumerate(zip(axes.ravel(), FEATURE_NAMES)):
         bp = ax.boxplot(
             [features[labels == i, fi] for i in range(N_SOLVERS)],
-            labels=SOLVERS, patch_artist=True,
-            flierprops=dict(marker=".", markersize=3, alpha=0.4),
+            patch_artist=True,
+            flierprops=dict(marker=".", markersize=2, alpha=0.3),
         )
         for patch, s in zip(bp["boxes"], SOLVERS):
             patch.set_facecolor(SOLVER_COLOR[s]); patch.set_alpha(0.8)
         ax.set_title(name, fontsize=10)
-        ax.set_xticklabels(SOLVERS, rotation=30, ha="right", fontsize=8)
+        ax.set_xticks(range(1, N_SOLVERS + 1))
+        ax.set_xticklabels(SOLVERS, rotation=90, ha="center", fontsize=5)
         ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
@@ -286,12 +280,14 @@ def fig_predictions(
         cm[i, i] / cm[i].sum() if cm[i].sum() > 0 else 0.0
         for i in range(N_SOLVERS)
     ])
-    bars = ax.bar(SOLVERS, per_acc, color=[SOLVER_COLOR[s] for s in SOLVERS])
-    ax.bar_label(bars, fmt="%.2f", fontsize=9)
+    bars = ax.bar(range(N_SOLVERS), per_acc, color=[SOLVER_COLOR[s] for s in SOLVERS])
+    ax.bar_label(bars, fmt="%.2f", fontsize=6)
     ax.axhline(acc, color="black", linestyle="--", linewidth=1.2, label=f"overall {acc:.2%}")
     ax.set_ylim(0, 1.15)
     ax.set_title("Per-Solver Accuracy")
     ax.set_xlabel("Solver"); ax.set_ylabel("Accuracy")
+    ax.set_xticks(range(N_SOLVERS))
+    ax.set_xticklabels(SOLVERS, rotation=90, ha="center", fontsize=5)
     ax.legend(fontsize=9)
     ax.grid(axis="y", alpha=0.3)
 
@@ -303,11 +299,11 @@ def fig_predictions(
     s_pred  = preds[:n_show]
     im2     = ax.imshow(s_probs, cmap="YlOrRd", vmin=0, vmax=1, aspect="auto")
     ax.set_xticks(range(N_SOLVERS))
-    ax.set_xticklabels(SOLVERS, rotation=45, ha="right")
+    ax.set_xticklabels(SOLVERS, rotation=90, ha="center", fontsize=5)
     ax.set_yticks(range(n_show))
     ax.set_yticklabels(
-        [f"true={SOLVERS[t]}  pred={SOLVERS[p]}" for t, p in zip(s_true, s_pred)],
-        fontsize=7,
+        [f"{SOLVERS[t]} → {SOLVERS[p]}" for t, p in zip(s_true, s_pred)],
+        fontsize=6,
     )
     ax.set_title("Predicted Probabilities\n(first 20 samples)")
     ax.set_xlabel("Solver")

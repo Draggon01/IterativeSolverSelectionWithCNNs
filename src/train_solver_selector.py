@@ -71,6 +71,7 @@ class SolverDataset(Dataset):
             self.length     = len(f["labels"])
             self.n_features = f["features"].shape[1]
             self.n_solvers  = len(f.attrs.get("solvers", [None] * N_SOLVERS))
+            self.image_mode = str(f.attrs.get("image_mode", "binary"))
         self._file = None   # opened lazily inside each worker
 
     def __len__(self) -> int:
@@ -92,17 +93,19 @@ def save_checkpoint(
     optimizer: optim.Optimizer,
     epoch: int,
     val_acc: float,
+    image_mode: str = "binary",
 ) -> None:
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     path = os.path.join(CHECKPOINT_DIR, f"epoch_{epoch:04d}.pt")
     torch.save(
         {
-            "epoch":          epoch,
-            "model_state":    model.state_dict(),
+            "epoch":           epoch,
+            "model_state":     model.state_dict(),
             "optimizer_state": optimizer.state_dict(),
-            "val_acc":        val_acc,
-            "n_features":     model.stats[0].in_features,
-            "n_classes":      model.head[-1].out_features,
+            "val_acc":         val_acc,
+            "n_features":      model.stats[0].in_features,
+            "n_classes":       model.head[-1].out_features,
+            "image_mode":      image_mode,
         },
         path,
     )
@@ -202,7 +205,7 @@ def main() -> None:
         )
 
         if epoch % CHECKPOINT_EVERY == 0 or epoch == MAX_EPOCHS:
-            save_checkpoint(model, optimizer, epoch, va_acc)
+            save_checkpoint(model, optimizer, epoch, va_acc, dataset.image_mode)
 
     writer.close()
     log.info("Training complete.")

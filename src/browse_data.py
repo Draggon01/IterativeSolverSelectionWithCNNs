@@ -36,7 +36,10 @@ from matplotlib.widgets import Button, TextBox, RadioButtons
 import h5py
 import torch
 
-from model import SOLVERS, N_SOLVERS, N_FEATURES, load_checkpoint, SolverSelectorNet
+from model import SOLVER_PAIRS, SOLVER_NAMES, N_SOLVERS, N_FEATURES, load_checkpoint, SolverSelectorNet
+
+# Convenience alias so display code reads cleanly
+SOLVERS = SOLVER_NAMES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -50,12 +53,17 @@ DEVICE = torch.device(
     ("cuda" if torch.cuda.is_available() else "cpu") if _dev == "auto" else _dev
 )
 
-PALETTE      = plt.cm.tab10(np.linspace(0, 0.9, N_SOLVERS))
-SOLVER_COLOR = {s: PALETTE[i] for i, s in enumerate(SOLVERS)}
+# One color per KSP type; all variants of the same KSP share that color.
+_KSP_TYPES   = ["cg", "minres", "gmres", "bicg", "bcgs", "tfqmr"]
+_KSP_PALETTE = plt.cm.tab10(np.linspace(0, 0.6, len(_KSP_TYPES)))
+_KSP_COLOR   = {k: _KSP_PALETTE[i] for i, k in enumerate(_KSP_TYPES)}
+SOLVER_COLOR = {name: _KSP_COLOR[ksp] for name, (ksp, _) in zip(SOLVER_NAMES, SOLVER_PAIRS)}
 
 FEATURE_NAMES = [
     "log(n)", "log(nnz)", "density", "symmetry",
     "diag dom.", "Frob/n", "trace/n", "max/mean",
+    "spectral rad.", "log cond.", "bandwidth/n",
+    "diag nnz frac", "row norm CV", "offdiag Frob",
 ]
 
 RIGHT_MODES   = ["Features", "Runtimes", "Info"]
@@ -87,7 +95,7 @@ class MatrixBrowser:
         self.model    = model
         self.n_total  = len(labels)
 
-        self._filter     = -1              # -1 = all; 0-5 = solver index
+        self._filter_ksp = None            # None = all; str = KSP type to show
         self._indices    = np.arange(self.n_total)
         self._pos        = 0
         self._right_mode = 0               # 0=Features 1=Runtimes 2=Info
@@ -99,11 +107,12 @@ class MatrixBrowser:
     # ── index helpers ─────────────────────────────────────────────────────────
 
     def _rebuild_index(self) -> None:
-        self._indices = (
-            np.arange(self.n_total)
-            if self._filter == -1
-            else np.where(self.labels == self._filter)[0]
-        )
+        if self._filter_ksp is None:
+            self._indices = np.arange(self.n_total)
+        else:
+            mask = np.array([SOLVER_PAIRS[int(l)][0] == self._filter_ksp
+                             for l in self.labels])
+            self._indices = np.where(mask)[0]
         self._pos = 0
 
     @property
@@ -162,21 +171,21 @@ class MatrixBrowser:
         self.tbox.on_submit(self._on_goto)
         self.btn_mode.on_clicked(self._on_mode_toggle)
 
-        # Solver filter radio buttons
-        radio_opts = ["all"] + SOLVERS
+        # Filter by KSP type (7 options: all + 6 KSP types)
+        radio_opts = ["all"] + _KSP_TYPES
         self.radio  = RadioButtons(
             self.fig.add_axes([0.55, 0.02, 0.44, 0.22]),
             radio_opts, active=0,
         )
         try:
             for label, circle in zip(radio_opts, self.radio.circles):
-                color = "#aaaaaa" if label == "all" else SOLVER_COLOR[label]
+                color = "#aaaaaa" if label == "all" else _KSP_COLOR[label]
                 circle.set_facecolor(color)
                 circle.set_radius(0.05)
         except AttributeError:
             pass
         self.radio.on_clicked(self._on_filter)
-        self.fig.text(0.55, 0.255, "Filter by best solver:", fontsize=9, style="italic")
+        self.fig.text(0.55, 0.255, "Filter by KSP type:", fontsize=9, style="italic")
 
     # ── event handlers ────────────────────────────────────────────────────────
 
@@ -197,7 +206,7 @@ class MatrixBrowser:
         self._draw()
 
     def _on_filter(self, label: str) -> None:
-        self._filter = -1 if label == "all" else SOLVERS.index(label)
+        self._filter_ksp = None if label == "all" else label
         self._rebuild_index()
         self._draw()
 
@@ -285,26 +294,35 @@ class MatrixBrowser:
 
         pred    = int(probs.argmax())
         correct = pred == true_label
-        colors  = [SOLVER_COLOR[s] for s in SOLVERS]
-        bars    = ax.barh(SOLVERS, probs, color=colors, alpha=0.85)
 
-        for bar, p, i in zip(bars, probs, range(N_SOLVERS)):
-            ax.text(min(p + 0.02, 0.95), bar.get_y() + bar.get_height() / 2,
-                    f"{p:.2f}", va="center", fontsize=8.5)
+        # Show top 10 by probability to keep the chart readable
+        top_idx = np.argsort(probs)[::-1][:10]
+        # Always include the true label even if outside top 10
+        if true_label not in top_idx:
+            top_idx = np.append(top_idx[:-1], true_label)
+        top_idx = sorted(top_idx, key=lambda i: -probs[i])
+
+        names  = [SOLVERS[i] for i in top_idx]
+        vals   = [probs[i]   for i in top_idx]
+        colors = [SOLVER_COLOR[SOLVERS[i]] for i in top_idx]
+        bars   = ax.barh(names, vals, color=colors, alpha=0.85)
+
+        for bar, p, i in zip(bars, vals, top_idx):
+            ax.text(min(p + 0.015, 0.92), bar.get_y() + bar.get_height() / 2,
+                    f"{p:.3f}", va="center", fontsize=8)
             if i == true_label:
                 bar.set_edgecolor("black"); bar.set_linewidth(2)
 
         status      = "✓ correct" if correct else "✗ wrong"
         title_color = "#2ca02c" if correct else "#d62728"
-        ax.set_title(f"Prediction: {SOLVERS[pred].upper()}  {status}",
-                     fontsize=10, color=title_color, fontweight="bold")
+        ax.set_title(f"Prediction: {SOLVERS[pred]}  {status}",
+                     fontsize=9, color=title_color, fontweight="bold")
         ax.set_xlim(0, 1.15)
         ax.set_xlabel("Probability")
-        ax.set_yticks(range(N_SOLVERS)); ax.set_yticklabels(SOLVERS)
         ax.grid(axis="x", alpha=0.3)
         ax.invert_yaxis()
-        ax.text(0.99, -0.09, "■ = actual best",
-                transform=ax.transAxes, ha="right", fontsize=8, color="gray")
+        ax.text(0.99, -0.09, "■ = actual best  (top 10 shown)",
+                transform=ax.transAxes, ha="right", fontsize=7.5, color="gray")
 
     def _draw_features(self, feat: np.ndarray) -> None:
         ax = self.ax_right
@@ -339,35 +357,37 @@ class MatrixBrowser:
             ax.axis("off")
             return
 
-        ms     = rt * 1000.0                   # convert to milliseconds
-        colors = [SOLVER_COLOR[s] for s in SOLVERS]
-        bars   = ax.barh(
-            SOLVERS, ms,
-            color=colors, alpha=0.85,
-        )
+        # Show only converged pairs, sorted by time
+        conv_idx = np.where(~np.isnan(rt))[0]
+        conv_idx = conv_idx[np.argsort(rt[conv_idx])]
 
-        # Grey out non-converged bars
-        for i, (bar, val) in enumerate(zip(bars, ms)):
-            if np.isnan(val):
-                bar.set_width(0)
-                ax.text(1, bar.get_y() + bar.get_height() / 2,
-                        "n/c", va="center", fontsize=8, color="gray")
-            else:
-                ax.text(val + max(ms[~np.isnan(ms)]) * 0.02,
-                        bar.get_y() + bar.get_height() / 2,
-                        f"{val:.1f} ms", va="center", fontsize=8.5)
+        if len(conv_idx) == 0:
+            ax.text(0.5, 0.5, "No solver converged.", ha="center", va="center",
+                    transform=ax.transAxes, color="gray", fontsize=10)
+            ax.set_title("Solver Runtimes", fontsize=10)
+            ax.axis("off")
+            return
+
+        ms     = rt[conv_idx] * 1000.0
+        names  = [SOLVERS[i] for i in conv_idx]
+        colors = [SOLVER_COLOR[SOLVERS[i]] for i in conv_idx]
+        bars   = ax.barh(names, ms, color=colors, alpha=0.85)
+
+        for bar, val, i in zip(bars, ms, conv_idx):
+            ax.text(val + ms.max() * 0.02, bar.get_y() + bar.get_height() / 2,
+                    f"{val:.1f} ms", va="center", fontsize=8)
             if i == label:
                 bar.set_edgecolor("black"); bar.set_linewidth(2)
 
         fastest = SOLVERS[label]
-        ax.set_title(f"Solver Runtimes  —  fastest: {fastest.upper()}",
-                     fontsize=10, color=SOLVER_COLOR[fastest], fontweight="bold")
+        ax.set_title(f"Runtimes — fastest: {fastest}",
+                     fontsize=9, color=SOLVER_COLOR[fastest], fontweight="bold")
         ax.set_xlabel("Wall-clock time (ms)")
-        ax.set_yticks(range(N_SOLVERS)); ax.set_yticklabels(SOLVERS)
         ax.grid(axis="x", alpha=0.3)
         ax.invert_yaxis()
-        ax.text(0.99, -0.09, "■ = fastest (label)",
-                transform=ax.transAxes, ha="right", fontsize=8, color="gray")
+        total = N_SOLVERS - len(conv_idx)
+        ax.text(0.99, -0.09, f"■ = fastest  ({total} pairs did not converge)",
+                transform=ax.transAxes, ha="right", fontsize=7.5, color="gray")
 
     def _draw_matrix_info(
         self,
