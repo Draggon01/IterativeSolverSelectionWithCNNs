@@ -128,6 +128,19 @@ def load_matrix(path: str) -> "sp.csr_matrix | None":
         return None
 
     A.eliminate_zeros()
+    A.sum_duplicates()
+    A.sort_indices()
+
+    # Empty rows crash PETSc preconditioners (Jacobi/ILU/SOR divide by diagonal)
+    if np.any(np.diff(A.indptr) == 0):
+        log.info("Skipping %s — has empty rows (likely a mass/projection matrix).", path)
+        return None
+
+    # Zero diagonal entries cause Jacobi/SOR preconditioners to divide by zero
+    if np.any(np.abs(A.diagonal()) < 1e-300):
+        log.info("Skipping %s — has zero diagonal entries.", path)
+        return None
+
     return A
 
 
@@ -348,22 +361,22 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
     done    = already_ingested(f)
     saved   = skipped = 0
 
-    search_kwargs: dict = dict(
-        nrows=(MIN_N, MAX_N),
-        dtype="real",
-        limit=N_MATRICES * 3,   # over-fetch to account for skips
-    )
+    search_kwargs: dict = dict(limit=N_MATRICES * 5)
     if ONLY_SPD:
         search_kwargs["isspd"] = True
 
-    log.info("Querying SuiteSparse collection (limit=%d) ...", search_kwargs["limit"])
+    log.info("Querying SuiteSparse collection ...")
     try:
         results = ssgetpy.search(**search_kwargs)
     except Exception as exc:
         log.error("SuiteSparse query failed: %s", exc)
         return
 
-    log.info("Found %d candidate matrices.", len(results))
+    results = [m for m in results
+               if MIN_N <= m.rows <= MAX_N
+               and getattr(m, 'dtype', 'real') == 'real']
+    log.info("Found %d candidate matrices after filtering (n=[%d,%d]).",
+             len(results), MIN_N, MAX_N)
     os.makedirs(CACHE_DIR, exist_ok=True)
 
     for matrix in results:
@@ -386,7 +399,7 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
             continue
 
         # Locate the .mtx file
-        pattern = os.path.join(CACHE_DIR, matrix.group, matrix.name, "*.mtx")
+        pattern = os.path.join(CACHE_DIR, matrix.name, "*.mtx")
         hits    = glob.glob(pattern)
         if not hits:
             log.warning("No .mtx found at %s", pattern)
@@ -399,9 +412,10 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
             skipped += 1
             continue
 
+        issym = bool(matrix.isspd) or (getattr(matrix, 'psym', 0) == 1 and getattr(matrix, 'nsym', 0) == 1)
         ok = ingest_matrix(f, A, source,
                            isspd=bool(matrix.isspd),
-                           issym=bool(matrix.issym),
+                           issym=issym,
                            rng=rng)
         if ok:
             saved += 1
