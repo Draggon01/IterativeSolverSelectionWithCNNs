@@ -14,11 +14,11 @@ services:
       - ./mm_model.py:/workspace/mm_model.py
       - ./mm_generate.py:/workspace/mm_generate.py
     environment:
-      - N_SAMPLES=5000
+      - N_SAMPLES=${N_SAMPLES:-5000}
       - DATA_DIR=/workspace/data
-      - SEED=42
-      - MAX_ITER=2000
-      - TOL=1e-8
+      - SEED=${SEED:-42}
+      - MAX_ITER=${MAX_ITER:-2000}
+      - TOL=${TOL:-1e-8}
     deploy:
       resources:
         limits:
@@ -68,13 +68,13 @@ services:
       - DATA_DIR=/workspace/data
       - CHECKPOINT_DIR=/workspace/checkpoints
       - LOG_DIR=/workspace/logs
-      - MAX_EPOCHS=256
-      - BATCH_SIZE=512
-      - LEARNING_RATE=0.001
-      - VAL_SPLIT=0.10
-      - CHECKPOINT_EVERY=10
-      - KEEP_LAST_N=3
-      - DEVICE=auto
+      - MAX_EPOCHS=${MAX_EPOCHS:-256}
+      - BATCH_SIZE=${BATCH_SIZE:-512}
+      - LEARNING_RATE=${LEARNING_RATE:-0.001}
+      - VAL_SPLIT=${VAL_SPLIT:-0.10}
+      - CHECKPOINT_EVERY=${CHECKPOINT_EVERY:-10}
+      - KEEP_LAST_N=${KEEP_LAST_N:-3}
+      - DEVICE=${DEVICE:-auto}
     depends_on:
       - mm_datagen
     stop_grace_period: 60s

@@ -102,15 +102,25 @@ def main() -> None:
     # Collect val indices to load runtimes after inference
     val_indices = list(val_ds.indices) if hasattr(val_ds, "indices") else None
 
+    all_topk = []
+
     model.eval()
     with torch.no_grad():
         for img, feat, lbl in val_loader:
             img, feat = img.to(DEVICE), feat.to(DEVICE)
-            all_preds.append(model(img, feat).argmax(1).cpu().numpy())
+            logits = model(img, feat)
+            all_preds.append(logits.argmax(1).cpu().numpy())
             all_labels.append(lbl.numpy())
+            # top-k: store indices sorted by descending logit
+            topk = logits.argsort(dim=1, descending=True)[:, :3].cpu().numpy()
+            all_topk.append(topk)
 
-    y_pred = np.concatenate(all_preds)
-    y_true = np.concatenate(all_labels)
+    y_pred  = np.concatenate(all_preds)
+    y_true  = np.concatenate(all_labels)
+    y_topk  = np.concatenate(all_topk, axis=0)  # (N, 3)
+
+    top2_acc = float(np.mean(np.any(y_true[:, None] == y_topk[:, :2], axis=1)))
+    top3_acc = float(np.mean(np.any(y_true[:, None] == y_topk[:, :3], axis=1)))
 
     # Load runtimes for near-optimal accuracy
     with h5py.File(os.path.join(DATA_DIR, "dataset.h5"), "r") as f:
@@ -141,6 +151,9 @@ def main() -> None:
     print(f"  Macro Precision: {metrics['MP']*100:.2f}%   (paper: 63.41%)")
     print(f"  Macro Recall   : {metrics['MR']*100:.2f}%   (paper: 62.81%)")
     print(f"  Macro F1       : {metrics['F1']*100:.2f}%   (paper: 62.53%)")
+    print()
+    print(f"  Top-2 Accuracy : {top2_acc*100:.2f}%")
+    print(f"  Top-3 Accuracy : {top3_acc*100:.2f}%")
     print()
     print(f"  Near-optimal Acc (±5%)  : {noa_5*100:.2f}%")
     print(f"  Near-optimal Acc (±10%) : {noa_10*100:.2f}%")
