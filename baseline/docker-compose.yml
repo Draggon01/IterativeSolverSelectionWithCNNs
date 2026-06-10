@@ -19,12 +19,6 @@ services:
       - SEED=${SEED:-42}
       - MAX_ITER=${MAX_ITER:-2000}
       - TOL=${TOL:-1e-8}
-    deploy:
-      resources:
-        limits:
-          memory: 8g
-          cpus: "4"
-
   # Step 1b — append SuiteSparse matrices to the baseline dataset (optional)
   mm_ingest:
     build: ../container
@@ -46,12 +40,6 @@ services:
       - ONLY_SPD=0
       - SEED=0
       # - MTX_DIR=/workspace/data/mtx   # for manual mode
-    deploy:
-      resources:
-        limits:
-          memory: 8g
-          cpus: "4"
-
   # Step 2 — train MM-AutoSolver model (Adam, lr=1e-3, 256 epochs, batch=512)
   mm_trainer:
     build: ../container
@@ -78,17 +66,7 @@ services:
     depends_on:
       - mm_datagen
     stop_grace_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 8g
-          cpus: "4"
-        # Uncomment for GPU:
-        # reservations:
-        #   devices:
-        #     - driver: nvidia
-        #       count: all
-        #       capabilities: [gpu]
+    # To enable GPU, add a deploy.resources.reservations block here
 
   # Step 3 — evaluate: Acc, MP, MR, F1 (paper's four metrics)
   mm_evaluate:
