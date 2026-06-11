@@ -40,6 +40,29 @@ services:
       - ONLY_SPD=0
       - SEED=0
       # - MTX_DIR=/workspace/data/mtx   # for manual mode
+  # Step 1c — ingest the 621 hardcoded benchmark matrices from SuiteSparse
+  mm_githubdata_ingest:
+    build: ../container
+    container_name: mm_githubdata_ingest
+    command: python mm_ingest.py
+    volumes:
+      - ./data:/workspace/data
+      - ../src/model.py:/workspace/model.py
+      - ../src/generate_data.py:/workspace/generate_data.py
+      - ../src/ingest_suitesparse.py:/workspace/ingest_suitesparse.py
+      - ./mm_model.py:/workspace/mm_model.py
+      - ./mm_ingest.py:/workspace/mm_ingest.py
+    environment:
+      - MODE=githubdata
+      - DATA_DIR=/workspace/data
+      - CACHE_DIR=/workspace/data/suitesparse_cache
+      - MIN_N=${MIN_N:-100}
+      - MAX_N=${MAX_N:-500000}
+      - N_MATRICES=${N_MATRICES:-621}
+      - SEED=${SEED:-0}
+      - MAX_ITER=${MAX_ITER:-2000}
+      - TOL=${TOL:-1e-8}
+
   # Step 2 — train MM-AutoSolver model (Adam, lr=1e-3, 256 epochs, batch=512)
   mm_trainer:
     build: ../container
