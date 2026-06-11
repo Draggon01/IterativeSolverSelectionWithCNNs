@@ -30,8 +30,10 @@ Environment variables:
 
 import glob
 import logging
+import multiprocessing as mp
 import os
 import sys
+import time
 
 import h5py
 import numpy as np
@@ -192,6 +194,105 @@ GITHUBDATA_MATRICES: tuple[str, ...] = (
 )
 
 
+# ── crash-safe benchmarking via subprocess ────────────────────────────────────
+#
+# PETSc can SEGV (signal 11) on certain matrices/preconditioner combinations.
+# A SEGV kills the entire process and cannot be caught with try/except.
+# Solution: run benchmarks in a persistent child process; if it crashes,
+# restart it and skip the offending matrix.
+
+BENCHMARK_TIMEOUT = int(os.getenv("BENCHMARK_TIMEOUT", "600"))  # seconds per matrix
+
+
+def _worker_main(task_q: mp.Queue, result_q: mp.Queue) -> None:
+    """Child process: receives benchmark tasks, sends back results."""
+    while True:
+        task = task_q.get()
+        if task is None:
+            break
+        indices, indptr, data, shape, b, mat_type = task
+        import scipy.sparse as _sp
+        A = _sp.csr_matrix((data, indices, indptr), shape=shape)
+
+        all_times: np.ndarray = np.full(MM_N_SOLVERS, np.nan, dtype=np.float32)
+        converged: dict = {}
+        for pair in MM_APPLICABLE[mat_type]:
+            ksp_type, pc_type = pair
+            # eisenstat (SSOR) requires SPD — crashes PETSc on symmetric-indefinite matrices
+            if pc_type == "eisenstat" and mat_type != "spd":
+                print(f"  [worker] skipping {ksp_type}+{pc_type} (eisenstat requires SPD)", flush=True)
+                continue
+            print(f"  [worker] trying {ksp_type}+{pc_type} ...", flush=True)
+            ok, iters, t = run_ksp(A, b, ksp_type, pc_type)
+            print(f"  [worker] {ksp_type}+{pc_type} -> ok={ok}  iters={iters}  t={t:.4f}s", flush=True)
+            if ok:
+                converged[pair] = t
+                all_times[MM_SOLVER_IDX[pair]] = float(t)
+
+        if converged:
+            best = min(converged, key=converged.__getitem__)
+            label = int(MM_SOLVER_IDX[best])
+        else:
+            label = None
+        result_q.put((label, all_times))
+
+
+class BenchmarkWorker:
+    """Manages a persistent child process for crash-safe benchmarking."""
+
+    def __init__(self) -> None:
+        self._ctx = mp.get_context("fork")
+        self._task_q: mp.Queue = self._ctx.Queue()
+        self._result_q: mp.Queue = self._ctx.Queue()
+        self._proc: mp.Process | None = None
+        self._start()
+
+    def _start(self) -> None:
+        self._proc = self._ctx.Process(
+            target=_worker_main, args=(self._task_q, self._result_q), daemon=True
+        )
+        self._proc.start()
+
+    def benchmark(self, A: sp.csr_matrix, b: np.ndarray,
+                  mat_type: str) -> "tuple[int | None, np.ndarray]":
+        nan_times = np.full(MM_N_SOLVERS, np.nan, dtype=np.float32)
+
+        self._task_q.put((A.indices, A.indptr, A.data, A.shape, b, mat_type))
+
+        # Poll every 2 s so a SEGV in the child is detected quickly
+        # instead of hanging for the full BENCHMARK_TIMEOUT.
+        deadline = time.monotonic() + BENCHMARK_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                result = self._result_q.get(timeout=2.0)
+                return result
+            except Exception:
+                pass
+            if not self._proc.is_alive():
+                log.warning(
+                    "Benchmark worker crashed (exit=%s) — skipping matrix, restarting worker.",
+                    self._proc.exitcode,
+                )
+                self._proc.join()
+                self._start()
+                return None, nan_times
+
+        log.warning("Benchmark timed out after %ds — restarting worker.", BENCHMARK_TIMEOUT)
+        self._proc.kill()
+        self._proc.join()
+        self._start()
+        return None, nan_times
+
+    def shutdown(self) -> None:
+        try:
+            self._task_q.put(None)
+            self._proc.join(timeout=5)
+        except Exception:
+            pass
+        if self._proc.is_alive():
+            self._proc.kill()
+
+
 # ── solver benchmarking ───────────────────────────────────────────────────────
 
 def benchmark(A: sp.csr_matrix, b: np.ndarray, mat_type: str) -> "tuple[int | None, np.ndarray]":
@@ -265,20 +366,25 @@ def append_sample(f: h5py.File, A: sp.csr_matrix, label: int,
 # ── ingestion pipeline ────────────────────────────────────────────────────────
 
 def ingest_matrix(f: h5py.File, A: sp.csr_matrix, source: str,
-                  isspd: bool, issym: bool, rng: np.random.Generator) -> bool:
+                  isspd: bool, issym: bool, rng: np.random.Generator,
+                  worker: "BenchmarkWorker | None" = None) -> bool:
     mat_type = classify(A, isspd, issym)
     b        = rng.standard_normal(A.shape[0])
 
     log.info("  Benchmarking %s  n=%d  nnz=%d  type=%s",
              source, A.shape[0], A.nnz, mat_type)
 
-    label, times = benchmark(A, b, mat_type)
+    if worker is not None:
+        label, times = worker.benchmark(A, b, mat_type)
+    else:
+        label, times = benchmark(A, b, mat_type)
+
     if label is None:
-        log.warning("  No solver converged for %s — skipping.", source)
+        log.warning("  No solver converged (or crashed) for %s — skipping.", source)
         return False
 
     append_sample(f, A, label, times, source)
-    f.flush()  # write to disk immediately so a crash doesn't lose data
+    f.flush()
     log.info("  Saved  best=%s", MM_SOLVER_NAMES[label])
     return True
 
@@ -408,6 +514,7 @@ def _ingest_by_names(f: h5py.File, names: list[str], rng: np.random.Generator,
     done    = already_ingested(f)
     saved   = skipped = 0
     os.makedirs(CACHE_DIR, exist_ok=True)
+    worker  = BenchmarkWorker()
 
     for name in names:
         if saved >= N_MATRICES:
@@ -470,12 +577,14 @@ def _ingest_by_names(f: h5py.File, names: list[str], rng: np.random.Generator,
             getattr(matrix, 'psym', 0) == 1 and getattr(matrix, 'nsym', 0) == 1
         )
         source = f"suitesparse/{name}"
-        ok = ingest_matrix(f, A, source, isspd=bool(matrix.isspd), issym=issym, rng=rng)
+        ok = ingest_matrix(f, A, source, isspd=bool(matrix.isspd), issym=issym,
+                           rng=rng, worker=worker)
         if ok:
             saved += 1
         else:
             skipped += 1
 
+    worker.shutdown()
     log.info("%s complete: saved=%d  skipped=%d", label, saved, skipped)
 
 
@@ -514,10 +623,6 @@ def run_githubdata(f: h5py.File, rng: np.random.Generator) -> None:
 
 def main() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
-
-    from petsc4py import PETSc
-    PETSc.Options()["ksp_error_if_not_converged"] = False
-
     h5_path = os.path.join(DATA_DIR, "dataset.h5")
     rng     = np.random.default_rng(SEED)
 
