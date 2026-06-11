@@ -85,10 +85,12 @@ def _to_csr(raw) -> "sp.csr_matrix | None":
     return sp.csr_matrix(raw, dtype=np.float64)
 
 
-def load_matrix(path: str) -> "sp.csr_matrix | None":
+def load_matrix(path: str, require_nonzero_diag: bool = True) -> "sp.csr_matrix | None":
     """
     Load a .mtx (Matrix Market) or .mat (MATLAB) file and return a real square
     CSR matrix, or None if the matrix is complex, rectangular, or unreadable.
+    Set require_nonzero_diag=False to allow matrices with zero diagonal entries
+    (useful for circuit matrices where only some preconditioners will apply).
     """
     ext = os.path.splitext(path)[1].lower()
     try:
@@ -136,8 +138,9 @@ def load_matrix(path: str) -> "sp.csr_matrix | None":
         log.info("Skipping %s — has empty rows (likely a mass/projection matrix).", path)
         return None
 
-    # Zero diagonal entries cause Jacobi/SOR preconditioners to divide by zero
-    if np.any(np.abs(A.diagonal()) < 1e-300):
+    # Zero diagonal entries cause Jacobi/SOR preconditioners to divide by zero.
+    # Skip only when strict mode is on; curated lists may relax this.
+    if require_nonzero_diag and np.any(np.abs(A.diagonal()) < 1e-300):
         log.info("Skipping %s — has zero diagonal entries.", path)
         return None
 

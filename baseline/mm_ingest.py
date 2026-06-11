@@ -431,13 +431,10 @@ def _ingest_by_names(f: h5py.File, names: list[str], rng: np.random.Generator,
             skipped += 1
             continue
 
-        n    = getattr(matrix, 'rows', 0)
-        cols = getattr(matrix, 'cols', 0)
-        if n != cols:
-            log.info("Skipping %s (not square: %d×%d).", name, n, cols)
-            skipped += 1
-            continue
-        if not (MIN_N <= n <= MAX_N):
+        # Use metadata only for size pre-filter (saves bandwidth); squareness
+        # is checked after loading because ssgetpy metadata can be unreliable.
+        n = getattr(matrix, 'rows', 0)
+        if n and not (MIN_N <= n <= MAX_N):
             log.info("Skipping %s (n=%d outside [%d, %d]).", name, n, MIN_N, MAX_N)
             skipped += 1
             continue
@@ -455,8 +452,17 @@ def _ingest_by_names(f: h5py.File, names: list[str], rng: np.random.Generator,
             skipped += 1
             continue
 
-        A = load_matrix(hits[0])
+        # Prefer {name}.mtx over auxiliary files (e.g. coord, rhs, b vectors)
+        exact = os.path.join(CACHE_DIR, name, f"{name}.mtx")
+        mtx_path = exact if os.path.isfile(exact) else hits[0]
+
+        A = load_matrix(mtx_path, require_nonzero_diag=False)
         if A is None:
+            skipped += 1
+            continue
+
+        if A.shape[0] != A.shape[1]:
+            log.info("Skipping %s (not square after load: %d×%d).", name, *A.shape)
             skipped += 1
             continue
 
