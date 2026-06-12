@@ -444,7 +444,7 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
             skipped += 1
             continue
 
-        A = load_matrix(hits[0])
+        A = load_matrix(hits[0], require_nonzero_diag=False)
         if A is None:
             skipped += 1
             continue
