@@ -202,10 +202,18 @@ GITHUBDATA_MATRICES: tuple[str, ...] = (
 # restart it and skip the offending matrix.
 
 BENCHMARK_TIMEOUT = int(os.getenv("BENCHMARK_TIMEOUT", "600"))  # seconds per matrix
+SOLVER_TIMEOUT    = int(os.getenv("SOLVER_TIMEOUT",    "60"))   # seconds per individual solver
 
 
 def _worker_main(task_q: mp.Queue, result_q: mp.Queue) -> None:
     """Child process: receives benchmark tasks, sends back results."""
+    import signal
+
+    def _alarm(signum, frame):
+        raise TimeoutError
+
+    signal.signal(signal.SIGALRM, _alarm)
+
     while True:
         task = task_q.get()
         if task is None:
@@ -223,7 +231,14 @@ def _worker_main(task_q: mp.Queue, result_q: mp.Queue) -> None:
                 print(f"  [worker] skipping {ksp_type}+{pc_type} (eisenstat requires SPD)", flush=True)
                 continue
             print(f"  [worker] trying {ksp_type}+{pc_type} ...", flush=True)
-            ok, iters, t = run_ksp(A, b, ksp_type, pc_type)
+            signal.alarm(SOLVER_TIMEOUT)
+            try:
+                ok, iters, t = run_ksp(A, b, ksp_type, pc_type)
+                signal.alarm(0)
+            except TimeoutError:
+                signal.alarm(0)
+                print(f"  [worker] {ksp_type}+{pc_type} -> TIMEOUT (>{SOLVER_TIMEOUT}s)", flush=True)
+                continue
             print(f"  [worker] {ksp_type}+{pc_type} -> ok={ok}  iters={iters}  t={t:.4f}s", flush=True)
             if ok:
                 converged[pair] = t
