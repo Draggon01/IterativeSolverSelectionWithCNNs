@@ -400,6 +400,7 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
 
     done    = already_ingested(f)
     saved   = skipped = 0
+    worker  = BenchmarkWorker()
 
     search_kwargs: dict = dict(limit=N_MATRICES * 5)
     if ONLY_SPD:
@@ -449,14 +450,20 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
             skipped += 1
             continue
 
+        if A.shape[0] != A.shape[1]:
+            log.info("Skipping %s (not square after load: %d×%d).", source, *A.shape)
+            skipped += 1
+            continue
+
         issym = bool(matrix.isspd) or (getattr(matrix, 'psym', 0) == 1 and getattr(matrix, 'nsym', 0) == 1)
         ok = ingest_matrix(f, A, source, isspd=bool(matrix.isspd),
-                           issym=issym, rng=rng)
+                           issym=issym, rng=rng, worker=worker)
         if ok:
             saved += 1
         else:
             skipped += 1
 
+    worker.shutdown()
     log.info("Auto mode complete: saved=%d  skipped=%d", saved, skipped)
 
 
