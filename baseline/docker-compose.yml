@@ -39,6 +39,8 @@ services:
       - N_MATRICES=${N_MATRICES:-1000}
       - ONLY_SPD=${ONLY_SPD:-0}
       - SEED=${SEED:-0}
+      - MAX_ITER=${MAX_ITER:-2000}
+      - TOL=${TOL:-1e-8}
       # - MTX_DIR=/workspace/data/mtx   # for manual mode
   # Step 1c — ingest the 621 hardcoded benchmark matrices from SuiteSparse
   mm_githubdata_ingest:
