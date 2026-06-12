@@ -34,11 +34,11 @@ services:
     environment:
       - MODE=auto           # auto (ssgetpy) or manual (MTX_DIR)
       - DATA_DIR=/workspace/data
-      - MIN_N=100
-      - MAX_N=50000
-      - N_MATRICES=1000
-      - ONLY_SPD=0
-      - SEED=0
+      - MIN_N=${MIN_N:-100}
+      - MAX_N=${MAX_N:-50000}
+      - N_MATRICES=${N_MATRICES:-1000}
+      - ONLY_SPD=${ONLY_SPD:-0}
+      - SEED=${SEED:-0}
       # - MTX_DIR=/workspace/data/mtx   # for manual mode
   # Step 1c — ingest the 621 hardcoded benchmark matrices from SuiteSparse
   mm_githubdata_ingest:
