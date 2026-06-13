@@ -67,6 +67,22 @@ services:
       - TOL=${TOL:-1e-8}
       - SOLVER_TIMEOUT=${SOLVER_TIMEOUT:-60}
 
+  # Step 1d — trim dataset (suitesparse_only, paper_sizes, or max_per_class)
+  mm_trim:
+    build: ../container
+    container_name: mm_trim
+    command: python mm_trim.py
+    volumes:
+      - ./data:/workspace/data
+      - ./mm_model.py:/workspace/mm_model.py
+      - ./mm_trim.py:/workspace/mm_trim.py
+    environment:
+      - MODE=${MODE:-max_per_class}
+      - DATA_DIR=/workspace/data
+      - MAX_PER_CLASS=${MAX_PER_CLASS:-2500}
+      - SUITESPARSE_ONLY=${SUITESPARSE_ONLY:-0}
+      - SEED=${SEED:-42}
+
   # Step 2 — train MM-AutoSolver model (Adam, lr=1e-3, 256 epochs, batch=512)
   mm_trainer:
     build: ../container
@@ -92,8 +108,15 @@ services:
       - DEVICE=${DEVICE:-auto}
     depends_on:
       - mm_datagen
+    shm_size: '2gb'
     stop_grace_period: 60s
-    # To enable GPU, add a deploy.resources.reservations block here
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   # Step 3 — evaluate: Acc, MP, MR, F1 (paper's four metrics)
   mm_evaluate:

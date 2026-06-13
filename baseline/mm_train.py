@@ -72,8 +72,14 @@ class MMDataset(Dataset):
     def __getitem__(self, idx: int):
         if self._file is None:
             self._file = h5py.File(self.path, "r")
-        img  = torch.from_numpy(self._file["images"][idx][None])   # (1, H, W)
-        feat = torch.from_numpy(self._file["features"][idx])       # (17,)
+        img  = torch.nan_to_num(
+            torch.from_numpy(self._file["images"][idx][None]),     # (1, H, W)
+            nan=0.0, posinf=1.0, neginf=0.0,
+        )
+        feat = torch.nan_to_num(
+            torch.from_numpy(self._file["features"][idx]),         # (17,)
+            nan=0.0, posinf=1e6, neginf=-1e6,
+        )
         lbl  = int(self._file["labels"][idx])
         return img, feat, lbl
 
@@ -109,11 +115,19 @@ def run_epoch(model, loader, criterion, optimizer, device, train):
         for batch_idx, (img, feat, lbl) in enumerate(loader):
             img, feat, lbl = img.to(device), feat.to(device), lbl.to(device)
             logits = model(img, feat)
+            logits = torch.clamp(logits, -100, 100)
             loss   = criterion(logits, lbl)
+
+            if torch.isnan(loss):
+                log.warning("  NaN loss on batch %d — skipping", batch_idx)
+                if train:
+                    optimizer.zero_grad()
+                continue
 
             if train:
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
 
             bs          = len(lbl)
@@ -126,6 +140,8 @@ def run_epoch(model, loader, criterion, optimizer, device, train):
                          batch_idx + 1, n_batches,
                          total_loss / total, correct / total)
 
+    if total == 0:
+        return float("nan"), 0.0
     return total_loss / total, correct / total
 
 
@@ -136,34 +152,37 @@ def main() -> None:
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
     dataset  = MMDataset(os.path.join(DATA_DIR, "dataset.h5"))
-    n_val    = max(1, int(len(dataset) * VAL_SPLIT))
-    n_train  = len(dataset) - n_val
-    train_ds, val_ds = random_split(
-        dataset, [n_train, n_val],
-        generator=torch.Generator().manual_seed(42),
-    )
+
+    # Stratified split: each class contributes VAL_SPLIT fraction to val
+    rng = np.random.default_rng(42)
+    with h5py.File(os.path.join(DATA_DIR, "dataset.h5"), "r") as f:
+        all_labels = f["labels"][:]
+    train_idx, val_idx = [], []
+    for cls in np.unique(all_labels):
+        idx = np.where(all_labels == cls)[0]
+        n_cls_val = max(1, int(len(idx) * VAL_SPLIT))
+        chosen_val = rng.choice(idx, size=n_cls_val, replace=False)
+        chosen_train = np.setdiff1d(idx, chosen_val)
+        val_idx.extend(chosen_val.tolist())
+        train_idx.extend(chosen_train.tolist())
+    from torch.utils.data import Subset
+    train_ds = Subset(dataset, train_idx)
+    val_ds   = Subset(dataset, val_idx)
 
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
                               num_workers=2, pin_memory=True)
     val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=2, pin_memory=True)
 
-    # Class weights inversely proportional to frequency — downweights dominant classes
-    with h5py.File(os.path.join(DATA_DIR, "dataset.h5"), "r") as f:
-        counts = np.bincount(f["labels"][:], minlength=dataset.n_classes).astype(np.float32)
-    counts = np.where(counts == 0, 1.0, counts)  # avoid div-by-zero for empty classes
-    class_weights = torch.tensor(1.0 / counts, dtype=torch.float32).to(DEVICE)
-    class_weights /= class_weights.sum()
-
     model     = MMAutoSolverNet(MM_N_FEATURES, dataset.n_classes).to(DEVICE)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
     writer    = SummaryWriter(log_dir=LOG_DIR)
 
     log.info(
         "MM-AutoSolver baseline | device=%s | train=%d val=%d | "
         "epochs=%d batch=%d lr=%.0e",
-        DEVICE, n_train, n_val, MAX_EPOCHS, BATCH_SIZE, LR,
+        DEVICE, len(train_idx), len(val_idx), MAX_EPOCHS, BATCH_SIZE, LR,
     )
 
     for epoch in range(1, MAX_EPOCHS + 1):
