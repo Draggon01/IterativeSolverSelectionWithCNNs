@@ -105,6 +105,8 @@ def main() -> None:
     log.info("  IMAGE_MODE   : %s  IMAGE_SIZE: %d", IMAGE_MODE, IMAGE_SIZE)
     log.info("  STORE_MATRIX : %s", STORE_MATRIX)
     log.info("  SEED         : %d", SEED)
+    log.info("  MAX_ITER     : %d  TOL: %s", MAX_ITER, os.getenv("TOL", "1e-8"))
+    log.info("  VERBOSE      : %s", VERBOSE)
     log.info("  Solvers      : %d  (%s … %s)", N_SOLVERS, SOLVER_NAMES[0], SOLVER_NAMES[-1])
     if os.path.exists(out_path):
         with h5py.File(out_path, "r") as _f:
