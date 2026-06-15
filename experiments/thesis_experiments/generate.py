@@ -118,9 +118,10 @@ def main() -> None:
         def _ensure(name, **kwargs):
             if name not in f:
                 f.create_dataset(name, **kwargs)
-        _ensure("images",      shape=(0, IMAGE_SIZE, IMAGE_SIZE),
-                maxshape=(None, IMAGE_SIZE, IMAGE_SIZE),
-                dtype="f4", chunks=(64, IMAGE_SIZE, IMAGE_SIZE))
+        if not STORE_MATRIX:
+            _ensure("images",  shape=(0, IMAGE_SIZE, IMAGE_SIZE),
+                    maxshape=(None, IMAGE_SIZE, IMAGE_SIZE),
+                    dtype="f4", chunks=(64, IMAGE_SIZE, IMAGE_SIZE))
         _ensure("features",    shape=(0, N_FEATURES), maxshape=(None, N_FEATURES),
                 dtype="f4", chunks=(256, N_FEATURES))
         _ensure("labels",      shape=(0,), maxshape=(None,), dtype="i4", chunks=(256,))
@@ -148,7 +149,9 @@ def main() -> None:
                  out_path, n_before, N_SAMPLES)
 
         if STORE_MATRIX:
-            log.info("STORE_MATRIX=1 — raw CSR data will be saved alongside each sample.")
+            log.info("STORE_MATRIX=1 — images skipped; run `render` to produce them.")
+        else:
+            log.info("Images will be rendered inline (mode=%s size=%d).", IMAGE_MODE, IMAGE_SIZE)
 
         while saved < N_SAMPLES:
             A, mat_type = sample_matrix(rng)
@@ -161,9 +164,12 @@ def main() -> None:
                 continue
 
             n = n_before + saved
-            for ds in ("images", "features", "labels", "runtimes", "source", "top3_labels"):
+            core_datasets = ("features", "labels", "runtimes", "source", "top3_labels")
+            for ds in core_datasets:
                 f[ds].resize(n + 1, axis=0)
-            f["images"][n]      = sparsity_image(A)
+            if not STORE_MATRIX:
+                f["images"].resize(n + 1, axis=0)
+                f["images"][n] = sparsity_image(A)
             f["features"][n]    = matrix_features(A)
             f["labels"][n]      = label
             f["runtimes"][n]    = solver_times

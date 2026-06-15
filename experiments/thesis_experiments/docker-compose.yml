@@ -16,6 +16,7 @@ services:
       - MAX_ITER=${MAX_ITER:-2000}
       - TOL=${TOL:-1e-8}
       - STORE_MATRIX=${STORE_MATRIX:-0}
+      - SEED=${SEED:-42}
       - DATA_DIR=/workspace/data
 
   # Step 1b: Ingest SuiteSparse matrices via ssgetpy (optional, appends to dataset.h5)
