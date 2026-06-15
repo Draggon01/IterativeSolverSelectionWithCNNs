@@ -43,6 +43,19 @@ def random_nonsymmetric(n: int, density: float, rng: np.random.Generator) -> sp.
     return A.tocsr()
 
 
+def shifted_spd(n: int, density: float, rng: np.random.Generator) -> sp.csr_matrix:
+    """
+    Symmetric indefinite matrix: an SPD matrix shifted to introduce negative eigenvalues.
+    Classified as 'sym' — enables symmlq, cr, fcg, minres and their preconditioners.
+    """
+    A     = random_spd(n, density, rng)
+    shift = float(rng.uniform(0.3, 0.8)) * float(A.diagonal().mean())
+    A     = A - shift * sp.eye(n, format="csr")
+    # Ensure no fully zero rows (PETSc requirement)
+    A     = A + sp.diags(np.where(np.abs(A.diagonal()) < 1e-10, 1e-4, 0.0))
+    return A.tocsr()
+
+
 def poisson_2d(nx: int, ny: int | None = None) -> sp.csr_matrix:
     """5-point finite-difference discretisation of −∇²u on an nx × ny grid."""
     if ny is None:
@@ -81,21 +94,47 @@ def poisson_3d(nx: int, ny: int | None = None, nz: int | None = None) -> sp.csr_
 
 
 def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str]:
-    """Uniformly pick a matrix type and random size; return (A, type_name)."""
-    choice = int(rng.integers(0, 4))
+    """
+    Uniformly pick one of 8 buckets and return (A, type_name).
+
+    Buckets:
+      0 — small SPD          n ∈ [100,  1 000],  d ∈ [0.02, 0.08]
+      1 — sym indefinite     n ∈ [100,  2 000],  d ∈ [0.02, 0.08]   → "sym"
+      2 — small non-sym      n ∈ [100,  1 000],  d ∈ [0.02, 0.08]
+      3 — large non-sym      n ∈ [1 000, 20 000], NNZ/row ∈ [5, 20]
+      4 — small Poisson 2-D  nx ∈ [10,   50]  → n up to   2 500
+      5 — large Poisson 2-D  nx ∈ [50,  142]  → n up to ~20 000
+      6 — small Poisson 3-D  nx ∈ [5,    15]  → n up to   3 375
+      7 — large Poisson 3-D  nx ∈ [15,   27]  → n up to ~19 683
+    """
+    choice = int(rng.integers(0, 8))
     if choice == 0:
-        n = int(rng.integers(100, 500))
+        n = int(rng.integers(100, 1_000))
         d = float(rng.uniform(0.02, 0.08))
         return random_spd(n, d, rng), "spd"
     elif choice == 1:
-        n = int(rng.integers(100, 500))
+        n = int(rng.integers(100, 2_000))
+        d = float(rng.uniform(0.02, 0.08))
+        return shifted_spd(n, d, rng), "sym"
+    elif choice == 2:
+        n = int(rng.integers(100, 1_000))
         d = float(rng.uniform(0.02, 0.08))
         return random_nonsymmetric(n, d, rng), "nonsym"
-    elif choice == 2:
+    elif choice == 3:
+        n = int(rng.integers(1_000, 20_000))
+        d = float(rng.uniform(5, 20)) / n   # cap NNZ/row to avoid memory blowup
+        return random_nonsymmetric(n, d, rng), "nonsym"
+    elif choice == 4:
         nx = int(rng.integers(10, 50))
         return poisson_2d(nx), "poisson2d"
+    elif choice == 5:
+        nx = int(rng.integers(50, 142))      # n up to 141² ≈ 20 000
+        return poisson_2d(nx), "poisson2d"
+    elif choice == 6:
+        nx = int(rng.integers(5, 15))
+        return poisson_3d(nx), "poisson3d"
     else:
-        nx = int(rng.integers(5, 20))
+        nx = int(rng.integers(15, 28))       # n up to 27³ ≈ 19 683
         return poisson_3d(nx), "poisson3d"
 
 
