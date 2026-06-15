@@ -246,8 +246,9 @@ def sym_banded_indefinite(n: int, bandwidth: int, rng: np.random.Generator) -> s
     diags_data.append(diag)
     offsets.append(0)
     A = sp.diags(diags_data, offsets, shape=(n, n), format="csr", dtype=np.float64)
-    # Mild shift: 5–20% of mean diagonal → mildly indefinite
-    shift = float(rng.uniform(0.05, 0.20)) * float(A.diagonal().mean())
+    # Moderate shift: 40–80% of mean diagonal → genuinely indefinite.
+    # CR diverges on indefinite systems; SYMMLQ+SOR is robust.
+    shift = float(rng.uniform(0.40, 0.80)) * float(A.diagonal().mean())
     A = A - shift * sp.eye(n, format="csr")
     A = A + sp.diags(np.where(np.abs(A.diagonal()) < 1e-10, 1e-4, 0.0))
     return A.tocsr()
@@ -411,10 +412,10 @@ def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str, str]:
         return anisotropic_poisson_2d(nx, eps), "poisson2d", bn
 
     elif bucket == 15:                       # Helmholtz 2-D (symmetric indefinite)
-        nx  = int(rng.integers(20, 141))
+        nx  = int(rng.integers(20, 100))
         h   = 1.0 / (nx + 1)
-        # k scales with grid so the Helmholtz parameter k·h ∈ [0.3, 1.5]
-        k   = float(rng.uniform(0.3, 1.5)) / h
+        # k·h ∈ [0.1, 0.5]: mild enough that SYMMLQ/CR converge reliably
+        k   = float(rng.uniform(0.1, 0.5)) / h
         return helmholtz_2d(nx, k), "sym", bn
 
     elif bucket == 16:                       # random banded
@@ -434,8 +435,8 @@ def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str, str]:
         return poisson_2d(nx), "poisson2d", bn
 
     else:                                    # bucket == 19: sym banded indefinite → symmlq+sor
-        n   = int(rng.integers(1_000, 15_000))
-        bw  = int(rng.integers(2, 20))      # narrow band: SOR sweep is effective
+        n   = int(rng.integers(1_000, 10_000))
+        bw  = int(rng.integers(2, 15))      # narrow band: SOR sweep is effective
         return sym_banded_indefinite(n, bw, rng), "sym", bn
 
 
