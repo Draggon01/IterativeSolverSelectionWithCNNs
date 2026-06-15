@@ -117,25 +117,36 @@ def select_suitesparse_only(labels: np.ndarray, sources: list[str]) -> np.ndarra
 
 
 def select_paper_sizes(labels: np.ndarray, sources: list[str]) -> np.ndarray:
-    print("\nmode=paper_sizes — capping each class to paper's original counts")
-    pool = np.arange(len(labels))
-
-    if SUITESPARSE_ONLY:
-        mask = np.array([s.startswith("suitesparse") for s in sources])
-        pool = pool[mask]
-        print(f"  Pre-filter SuiteSparse: {len(labels)} → {len(pool)} samples")
+    print("\nmode=paper_sizes — capping each class to paper's original counts"
+          + ("  prefer_suitesparse=yes" if SUITESPARSE_ONLY else ""))
+    all_idx = np.arange(len(labels))
 
     keep = []
     for cls_idx, cap in PAPER_COUNTS.items():
-        idx = pool[labels[pool] == cls_idx]
+        idx = all_idx[labels == cls_idx]
         if len(idx) == 0:
             print(f"  {MM_SOLVER_NAMES[cls_idx]:<25}: 0 samples (class empty — skipped)")
             continue
-        if len(idx) <= cap:
-            chosen = idx
+
+        if SUITESPARSE_ONLY:
+            # Prefer SuiteSparse, top up with synthetic if needed
+            real_idx  = np.array([i for i in idx if sources[i].startswith("suitesparse")])
+            synth_idx = np.array([i for i in idx if not sources[i].startswith("suitesparse")])
+            if len(real_idx) >= cap:
+                chosen = rng.choice(real_idx, size=cap, replace=False)
+            else:
+                n_synth = cap - len(real_idx)
+                extra   = rng.choice(synth_idx, size=min(n_synth, len(synth_idx)), replace=False)
+                chosen  = np.concatenate([real_idx, extra])
+            print(f"  {MM_SOLVER_NAMES[cls_idx]:<25}: {len(idx):>6} → {len(chosen)}"
+                  f"  (real={len(real_idx)}, synth used={len(chosen) - len(real_idx)})")
         else:
-            chosen = rng.choice(idx, size=cap, replace=False)
-        print(f"  {MM_SOLVER_NAMES[cls_idx]:<25}: {len(idx):>6} → {len(chosen)}")
+            if len(idx) <= cap:
+                chosen = idx
+            else:
+                chosen = rng.choice(idx, size=cap, replace=False)
+            print(f"  {MM_SOLVER_NAMES[cls_idx]:<25}: {len(idx):>6} → {len(chosen)}")
+
         keep.append(chosen)
 
     return np.sort(np.concatenate(keep)) if keep else np.array([], dtype=np.int64)

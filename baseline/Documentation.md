@@ -281,14 +281,155 @@ python mm_evaluate.py
 
 ```
 
-##### Trainin Result : LEARNING_RATE=1e-4 docker compose run --no-deps -d mm_trainer
+##### Trainin Result : docker compose run --no-deps -d mm_trainer
 ```cmd 
+2026-06-13 20:19:42,406 INFO Checkpoint: epoch=256  val_acc=0.5397
+
+── MM-AutoSolver Baseline Results ──────────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 1916  (of 19167 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 72.49%   (paper: 78.54%)
+  Macro Precision: 69.22%   (paper: 63.41%)
+  Macro Recall   : 60.36%   (paper: 62.81%)
+  Macro F1       : 59.48%   (paper: 62.53%)
+
+  Top-2 Accuracy : 85.91%
+  Top-3 Accuracy : 92.07%
+
+  Near-optimal Acc (±5%)  : 80.38%
+  Near-optimal Acc (±10%) : 87.06%
+  Near-optimal Acc (±20%) : 92.59%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi           2000     2173   98.3%   99.5%   97.1%
+  bcgsl+none              2000     2054   95.4%   96.2%   94.7%
+  symmlq+icc               161     1201   20.0%  100.0%   11.1%
+  symmlq+jacobi            218      923   95.0%  100.0%   90.5%
+  dgmres+none               64      650   90.0%   81.8%  100.0%
+  gmres+gamg               395      640   35.4%   53.8%   26.4%
+  cr+eisenstat            2000      598   84.4%   94.3%   76.4%
+  symmlq+sor               120      582   84.2%   88.9%   80.0%
+  fbcgsr+ilu              1264      562   93.9%   93.0%   94.7%
+  minres+gamg              416      524   42.0%   31.6%   62.5%
+  fcg+gamg                 142      342    0.0%    0.0%    0.0%
+  cr+jacobi               2000      310   93.6%   92.9%   94.3%
+  cg+ilu                  2000      275    4.7%   20.8%    2.7%
+  fgmres+gamg              144      226    0.0%    0.0%    0.0%
+  cg+eisenstat            2000      224   61.7%   55.8%   68.9%
+  cg+bjacobi              2000      193   52.5%   44.1%   64.6%
+  cr+ilu                  2000       68   74.0%   62.3%   91.1%
+  cgs+gamg                 109       49   13.3%  100.0%    7.1%
+  bcgsl+asm                134       29   91.7%  100.0%   84.6%
+─────────────────────────────────────────────────────────────────
+
 ```
 4. than try with the distribution from the paper
-##### Dataset
+##### Dataset : (MODE=paper_sizes SUITESPARSE_ONLY=1 docker compose run mm_trim)
 ```cmd 
+── Dataset distribution  (./data/dataset.h5) ──────────────────
+  Total samples : 8214  |  Paper total : 11,623
+
+  Solver                  Ours      %   Paper      %  Bar (ours)
+  --------------------  ------  -----  ------  -----  -------------------------
+  fbcgsr+jacobi           2000  24.3%    2173  18.7%  ██████
+  bcgsl+none              2000  24.3%    2054  17.7%  ██████
+  symmlq+icc               161   2.0%    1201  10.3%  
+  symmlq+jacobi            218   2.7%     923   7.9%  
+  dgmres+none               64   0.8%     650   5.6%  
+  gmres+gamg               395   4.8%     640   5.5%  █
+  cr+eisenstat             662   8.1%     598   5.1%  ██
+  symmlq+sor               120   1.5%     582   5.0%  
+  fbcgsr+ilu               622   7.6%     562   4.8%  █
+  minres+gamg              416   5.1%     524   4.5%  █
+  fcg+gamg                 142   1.7%     342   2.9%  
+  cr+jacobi                343   4.2%     310   2.7%  █
+  cg+ilu                   304   3.7%     275   2.4%  
+  fgmres+gamg              144   1.8%     226   1.9%  
+  cg+eisenstat             248   3.0%     224   1.9%  
+  cg+bjacobi               214   2.6%     193   1.7%  
+  cr+ilu                    75   0.9%      68   0.6%  
+  cgs+gamg                  54   0.7%      49   0.4%  
+  bcgsl+asm                 32   0.4%      29   0.2%    ⚠ low
+
+  TOTAL                   8214   100%   11623   100%
+
+  Empty classes : 0   Low (<50) classes : 1
+
+── Matrix sizes (n = number of rows) ───────────────────────────────
+  Overall  min=100  median=1620  mean=9369  max=84617
+
+  Solver                     N    min n    med n   mean n    max n
+  --------------------  ------  -------  -------  -------  -------
+  fbcgsr+jacobi           2000      103    14073    14052    29992
+  bcgsl+none              2000      100      322      456    26003  ⚠ small
+  symmlq+icc               161      400     1728     3018    39304
+  symmlq+jacobi            218      168     1813     1867    18368
+  dgmres+none               64      341     5904     6924    27276
+  gmres+gamg               395     1220    28900    25963    57735
+  cr+eisenstat             662      125     1370     2455    39304
+  symmlq+sor               120      100      398     1634    17361  ⚠ small
+  fbcgsr+ilu               622      100      285     1042    84617  ⚠ small
+  minres+gamg              416     1036    33306    31323    39601
+  fcg+gamg                 142     4257    32761    31290    39601
+  cr+jacobi                343      125      739     1790    46772
+  cg+ilu                   304      118    10648    12415    39304
+  fgmres+gamg              144     2000    28392    28559    39601
+  cg+eisenstat             248      112     3375    10671    39304
+  cg+bjacobi               214     1000    14762    16133    39304
+  cr+ilu                    75      121     1000     2593    19896
+  cgs+gamg                  54     1182    28732    26612    39204
+  bcgsl+asm                 32      485     5648     5524    13209
+
 ```
 
-##### Trainin Result
+##### Trainin Result : docker compose run --no-deps -d mm_trainer
 ```cmd 
+2026-06-13 20:53:54,950 INFO Checkpoint: epoch=256  val_acc=0.5791
+
+── MM-AutoSolver Baseline Results ──────────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 821  (of 8214 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 81.97%   (paper: 78.54%)
+  Macro Precision: 62.88%   (paper: 63.41%)
+  Macro Recall   : 61.83%   (paper: 62.81%)
+  Macro F1       : 60.45%   (paper: 62.53%)
+
+  Top-2 Accuracy : 90.13%
+  Top-3 Accuracy : 95.01%
+
+  Near-optimal Acc (±5%)  : 86.97%
+  Near-optimal Acc (±10%) : 91.47%
+  Near-optimal Acc (±20%) : 95.86%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi           2000     2173   98.8%   98.6%   99.0%
+  bcgsl+none              2000     2054   97.3%   96.6%   98.0%
+  symmlq+icc               161     1201   51.4%   42.9%   64.3%
+  symmlq+jacobi            218      923   95.8%  100.0%   92.0%
+  dgmres+none               64      650   66.7%   60.0%   75.0%
+  gmres+gamg               395      640   41.0%   38.1%   44.4%
+  cr+eisenstat             662      598   77.9%   69.9%   87.9%
+  symmlq+sor               120      582   93.3%  100.0%   87.5%
+  fbcgsr+ilu               622      562   93.2%  100.0%   87.3%
+  minres+gamg              416      524   56.6%   43.5%   81.1%
+  fcg+gamg                 142      342    0.0%    0.0%    0.0%
+  cr+jacobi                343      310   94.9%   93.3%   96.6%
+  cg+ilu                   304      275   28.6%   46.7%   20.6%
+  fgmres+gamg              144      226    0.0%    0.0%    0.0%
+  cg+eisenstat             248      224   52.5%   53.3%   51.6%
+  cg+bjacobi               214      193   56.0%   51.9%   60.9%
+  cr+ilu                    75       68    0.0%    0.0%    0.0%
+  cgs+gamg                  54       49   44.4%  100.0%   28.6%
+  bcgsl+asm                 32       29  100.0%  100.0%  100.0%
+─────────────────────────────────────────────────────────────────
+
 ```
+
+5. 5with as good as it gets matching solvers for matrices i get really close to the papers outcomes. as in my eyes a good distribution of values is imortant to check if learning suceeds i will use the data from point 4.
+   1. this means now the baseline model will be untouched and i will use my src folder to invastigate further ides.

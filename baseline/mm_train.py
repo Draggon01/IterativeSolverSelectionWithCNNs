@@ -115,7 +115,7 @@ def run_epoch(model, loader, criterion, optimizer, device, train):
         for batch_idx, (img, feat, lbl) in enumerate(loader):
             img, feat, lbl = img.to(device), feat.to(device), lbl.to(device)
             logits = model(img, feat)
-            logits = torch.clamp(logits, -100, 100)
+            logits = torch.clamp(logits, -50, 50)
             loss   = criterion(logits, lbl)
 
             if torch.isnan(loss):
@@ -170,7 +170,7 @@ def main() -> None:
     val_ds   = Subset(dataset, val_idx)
 
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
-                              num_workers=2, pin_memory=True)
+                              num_workers=2, pin_memory=True, drop_last=True)
     val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=2, pin_memory=True)
 
