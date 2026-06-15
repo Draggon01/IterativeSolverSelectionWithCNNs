@@ -161,10 +161,10 @@ def main() -> None:
             log.info("Images will be rendered inline (mode=%s size=%d).", IMAGE_MODE, IMAGE_SIZE)
 
         while saved < N_SAMPLES:
-            A, mat_type = sample_matrix(rng)
-            b           = rng.standard_normal(A.shape[0])
-            log.info("Trying  #%d  type=%-10s  n=%-6d  nnz=%d",
-                     n_before + saved + 1, mat_type, A.shape[0], A.nnz)
+            A, mat_type, bucket = sample_matrix(rng)
+            b                   = rng.standard_normal(A.shape[0])
+            log.info("Trying  #%-5d  bucket=%-18s  type=%-10s  n=%-6d  nnz=%d",
+                     n_before + saved + 1, bucket, mat_type, A.shape[0], A.nnz)
 
             label, solver_times, top3 = best_solver_label(A, b, mat_type)
             if label is None:

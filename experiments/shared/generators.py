@@ -252,10 +252,30 @@ _BUCKET_WEIGHTS = np.array([
 ], dtype=np.float64)
 _BUCKET_WEIGHTS /= _BUCKET_WEIGHTS.sum()
 
+_BUCKET_NAMES = [
+    "spd-small",        #  0
+    "sym-indef-small",  #  1
+    "sym-indef-large",  #  2
+    "nonsym-small",     #  3
+    "nonsym-medium",    #  4
+    "nonsym-large",     #  5
+    "poisson2d-small",  #  6
+    "poisson2d-large",  #  7
+    "poisson3d-small",  #  8
+    "poisson3d-large",  #  9
+    "convdiff2d-small", # 10
+    "convdiff2d-large", # 11
+    "convdiff3d-large", # 12
+    "aniso2d-small",    # 13
+    "aniso2d-large",    # 14
+    "helmholtz2d",      # 15
+    "banded",           # 16
+]
 
-def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str]:
+
+def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str, str]:
     """
-    Pick one of 17 weighted buckets and return (A, type_name).
+    Pick one of 17 weighted buckets and return (A, type_name, bucket_name).
 
     type_name controls which solver pairs are benchmarked (via APPLICABLE):
       "spd"      — all 19 pairs
@@ -265,66 +285,67 @@ def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str]:
       "poisson3d"— all 19 pairs
     """
     bucket = int(rng.choice(len(_BUCKET_WEIGHTS), p=_BUCKET_WEIGHTS))
+    bn = _BUCKET_NAMES[bucket]
 
     if bucket == 0:                          # small SPD
         n = int(rng.integers(100, 1_000))
         d = float(rng.uniform(0.02, 0.08))
-        return random_spd(n, d, rng), "spd"
+        return random_spd(n, d, rng), "spd", bn
 
     elif bucket == 1:                        # sym indefinite small
         n = int(rng.integers(100, 2_000))
         d = float(rng.uniform(0.02, 0.08))
-        return shifted_spd(n, d, rng), "sym"
+        return shifted_spd(n, d, rng), "sym", bn
 
     elif bucket == 2:                        # sym indefinite large
         n = int(rng.integers(2_000, 10_000))
         d = float(rng.uniform(5, 20)) / n
-        return shifted_spd(n, d, rng), "sym"
+        return shifted_spd(n, d, rng), "sym", bn
 
     elif bucket == 3:                        # nonsym small
         n = int(rng.integers(100, 1_000))
         d = float(rng.uniform(0.02, 0.08))
-        return random_nonsymmetric(n, d, rng), "nonsym"
+        return random_nonsymmetric(n, d, rng), "nonsym", bn
 
     elif bucket == 4:                        # nonsym medium
         n = int(rng.integers(1_000, 5_000))
         d = float(rng.uniform(5, 20)) / n
-        return random_nonsymmetric(n, d, rng), "nonsym"
+        return random_nonsymmetric(n, d, rng), "nonsym", bn
 
     elif bucket == 5:                        # nonsym large
         n = int(rng.integers(5_000, 20_000))
         d = float(rng.uniform(5, 20)) / n
-        return random_nonsymmetric(n, d, rng), "nonsym"
+        return random_nonsymmetric(n, d, rng), "nonsym", bn
 
     elif bucket == 6:                        # Poisson 2-D small
         nx = int(rng.integers(10, 50))
-        return poisson_2d(nx), "poisson2d"
+        return poisson_2d(nx), "poisson2d", bn
 
     elif bucket == 7:                        # Poisson 2-D large → n ≤ 40 000
         nx = int(rng.integers(70, 201))
-        return poisson_2d(nx), "poisson2d"
+        return poisson_2d(nx), "poisson2d", bn
 
     elif bucket == 8:                        # Poisson 3-D small
         nx = int(rng.integers(5, 15))
-        return poisson_3d(nx), "poisson3d"
+        return poisson_3d(nx), "poisson3d", bn
 
     elif bucket == 9:                        # Poisson 3-D large → n ≤ 42 875
         nx = int(rng.integers(15, 36))
-        return poisson_3d(nx), "poisson3d"
+        return poisson_3d(nx), "poisson3d", bn
 
     elif bucket == 10:                       # conv-diff 2-D small
         nx  = int(rng.integers(10, 50))
         eps = float(rng.uniform(0.001, 0.1))
         bx  = float(rng.uniform(-2.0, 2.0))
         by  = float(rng.uniform(-2.0, 2.0))
-        return convection_diffusion_2d(nx, eps, bx, by), "nonsym"
+        return convection_diffusion_2d(nx, eps, bx, by), "nonsym", bn
 
     elif bucket == 11:                       # conv-diff 2-D large → n ≤ 40 000
         nx  = int(rng.integers(70, 201))
         eps = float(rng.uniform(0.001, 0.05))
         bx  = float(rng.uniform(-2.0, 2.0))
         by  = float(rng.uniform(-2.0, 2.0))
-        return convection_diffusion_2d(nx, eps, bx, by), "nonsym"
+        return convection_diffusion_2d(nx, eps, bx, by), "nonsym", bn
 
     elif bucket == 12:                       # conv-diff 3-D large → n ≤ 27 000
         nx  = int(rng.integers(10, 31))
@@ -332,29 +353,29 @@ def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str]:
         bx  = float(rng.uniform(-2.0, 2.0))
         by  = float(rng.uniform(-2.0, 2.0))
         bz  = float(rng.uniform(-2.0, 2.0))
-        return convection_diffusion_3d(nx, eps, bx, by, bz), "nonsym"
+        return convection_diffusion_3d(nx, eps, bx, by, bz), "nonsym", bn
 
     elif bucket == 13:                       # aniso Poisson 2-D small
         nx  = int(rng.integers(10, 50))
         eps = float(rng.uniform(0.001, 0.1))
-        return anisotropic_poisson_2d(nx, eps), "poisson2d"
+        return anisotropic_poisson_2d(nx, eps), "poisson2d", bn
 
     elif bucket == 14:                       # aniso Poisson 2-D large → n ≤ 40 000
         nx  = int(rng.integers(70, 201))
         eps = float(rng.uniform(0.001, 0.05))
-        return anisotropic_poisson_2d(nx, eps), "poisson2d"
+        return anisotropic_poisson_2d(nx, eps), "poisson2d", bn
 
     elif bucket == 15:                       # Helmholtz 2-D (symmetric indefinite)
         nx  = int(rng.integers(20, 141))
         h   = 1.0 / (nx + 1)
         # k scales with grid so the Helmholtz parameter k·h ∈ [0.3, 1.5]
         k   = float(rng.uniform(0.3, 1.5)) / h
-        return helmholtz_2d(nx, k), "sym"
+        return helmholtz_2d(nx, k), "sym", bn
 
     else:                                    # bucket == 16: random banded
         n   = int(rng.integers(500, 20_000))
         bw  = int(rng.integers(1, min(50, n // 4)))
-        return random_banded(n, bw, rng), "nonsym"
+        return random_banded(n, bw, rng), "nonsym", bn
 
 
 # ── PETSc interface ───────────────────────────────────────────────────────────
