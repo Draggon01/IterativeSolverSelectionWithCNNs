@@ -93,49 +93,268 @@ def poisson_3d(nx: int, ny: int | None = None, nz: int | None = None) -> sp.csr_
     )
 
 
+# ── PDE and structured matrix generators ─────────────────────────────────────
+
+def convection_diffusion_2d(
+    nx: int, eps: float, bx: float, by: float,
+) -> sp.csr_matrix:
+    """
+    2-D convection-diffusion: -eps*∇²u + bx*du/dx + by*du/dy = f.
+    Upwind FD on an nx×nx grid (Dirichlet BCs).
+    Non-symmetric when (bx, by) ≠ (0, 0) — enables GMRES+GAMG over CG.
+    """
+    n = nx * nx
+    h = 1.0 / (nx + 1)
+
+    diag  = np.full(n, 4.0*eps/h**2 + (abs(bx) + abs(by))/h)
+
+    ox_lo = np.full(n - 1, -eps/h**2 - max(bx, 0.0)/h)
+    ox_lo[nx - 1::nx] = 0.0                          # no x-wrap across rows
+    ox_hi = np.full(n - 1, -eps/h**2 + min(bx, 0.0)/h)
+    ox_hi[nx - 1::nx] = 0.0
+
+    oy_lo = np.full(n - nx, -eps/h**2 - max(by, 0.0)/h)
+    oy_hi = np.full(n - nx, -eps/h**2 + min(by, 0.0)/h)
+
+    return sp.diags(
+        [oy_lo, ox_lo, diag, ox_hi, oy_hi],
+        [-nx, -1, 0, 1, nx],
+        shape=(n, n), format="csr", dtype=np.float64,
+    )
+
+
+def convection_diffusion_3d(
+    nx: int, eps: float, bx: float, by: float, bz: float,
+) -> sp.csr_matrix:
+    """
+    3-D convection-diffusion: -eps*∇²u + b·∇u = f.
+    Upwind FD on an nx×nx×nx grid. Non-symmetric when b ≠ 0.
+    """
+    n   = nx ** 3
+    nxy = nx * nx
+    h   = 1.0 / (nx + 1)
+
+    diag  = np.full(n, 6.0*eps/h**2 + (abs(bx) + abs(by) + abs(bz))/h)
+
+    ox_lo = np.full(n - 1,   -eps/h**2 - max(bx, 0.0)/h)
+    ox_lo[nx - 1::nx] = 0.0
+    ox_hi = np.full(n - 1,   -eps/h**2 + min(bx, 0.0)/h)
+    ox_hi[nx - 1::nx] = 0.0
+
+    oy_lo = np.full(n - nx,  -eps/h**2 - max(by, 0.0)/h)
+    oy_hi = np.full(n - nx,  -eps/h**2 + min(by, 0.0)/h)
+
+    oz_lo = np.full(n - nxy, -eps/h**2 - max(bz, 0.0)/h)
+    oz_hi = np.full(n - nxy, -eps/h**2 + min(bz, 0.0)/h)
+
+    return sp.diags(
+        [oz_lo, oy_lo, ox_lo, diag, ox_hi, oy_hi, oz_hi],
+        [-nxy, -nx, -1, 0, 1, nx, nxy],
+        shape=(n, n), format="csr", dtype=np.float64,
+    )
+
+
+def anisotropic_poisson_2d(nx: int, eps: float) -> sp.csr_matrix:
+    """
+    2-D anisotropic Poisson: -eps*d²u/dx² - d²u/dy² = f.
+    SPD for eps > 0; high anisotropy (eps ≪ 1) makes ILU struggle while
+    GAMG handles the directional stretching well.
+    """
+    n = nx * nx
+    h = 1.0 / (nx + 1)
+
+    diag = np.full(n, (2.0*eps + 2.0) / h**2)
+    ox   = np.full(n - 1,  -eps / h**2)
+    ox[nx - 1::nx] = 0.0
+    oy   = np.full(n - nx, -1.0 / h**2)
+
+    return sp.diags(
+        [oy, ox, diag, ox.copy(), oy.copy()],
+        [-nx, -1, 0, 1, nx],
+        shape=(n, n), format="csr", dtype=np.float64,
+    )
+
+
+def helmholtz_2d(nx: int, k: float) -> sp.csr_matrix:
+    """
+    2-D Helmholtz: -∇²u - k²u = f.
+    Symmetric; indefinite when k² exceeds the smallest eigenvalue of -∇²
+    (roughly 2π² for large nx — so k > ~4.4 typically triggers indefiniteness).
+    Enables MINRES, SYMMLQ and other symmetric-indefinite solvers.
+    """
+    n = nx * nx
+    h = 1.0 / (nx + 1)
+
+    diag = np.full(n, 4.0/h**2 - k**2)
+    ox   = np.full(n - 1,  -1.0/h**2)
+    ox[nx - 1::nx] = 0.0
+    oy   = np.full(n - nx, -1.0/h**2)
+
+    return sp.diags(
+        [oy, ox, diag, ox.copy(), oy.copy()],
+        [-nx, -1, 0, 1, nx],
+        shape=(n, n), format="csr", dtype=np.float64,
+    )
+
+
+def random_banded(n: int, bandwidth: int, rng: np.random.Generator) -> sp.csr_matrix:
+    """
+    Non-symmetric banded matrix with the given bandwidth.
+    Upper and lower off-diagonals are drawn independently → non-symmetric.
+    Diagonal is chosen for strict diagonal dominance.
+    """
+    diags_data: list[np.ndarray] = []
+    offsets:    list[int]        = []
+    row_abs = np.zeros(n)
+
+    for k in range(1, bandwidth + 1):
+        size = n - k
+        lo = rng.uniform(-1.0, 1.0, size)
+        hi = rng.uniform(-1.0, 1.0, size)
+        diags_data += [lo, hi]
+        offsets    += [-k, k]
+        row_abs[k:]    += np.abs(lo)
+        row_abs[:size] += np.abs(hi)
+
+    diags_data.append(row_abs + rng.uniform(0.5, 1.5, n))
+    offsets.append(0)
+
+    return sp.diags(
+        diags_data, offsets, shape=(n, n), format="csr", dtype=np.float64,
+    )
+
+
+# Sampling weights for the 17 buckets in sample_matrix.
+# Unnormalised integers — divided below so the sum is always exactly 1.
+#
+# High weight on large Poisson and large non-sym so that GAMG/ASM-based
+# solvers win often enough to share the dataset with CG-family solvers.
+# Convection-diffusion and Helmholtz add PDE structure that favours
+# GMRES+GAMG and MINRES/SYMMLQ respectively.
+_BUCKET_WEIGHTS = np.array([
+    3,   #  0 — small SPD                 → cg+ilu, cg+eisenstat, cg+bjacobi
+    4,   #  1 — sym indefinite small      → symmlq+*, cr+*
+    4,   #  2 — sym indefinite large      → symmlq+*, cr+*, minres+gamg
+    3,   #  3 — nonsym small              → fbcgsr+jacobi, bcgsl+none
+    5,   #  4 — nonsym medium             → fbcgsr+ilu, dgmres+none
+    7,   #  5 — nonsym large              → bcgsl+asm, cgs+gamg, fgmres+gamg
+    3,   #  6 — Poisson 2-D small         → cg+ilu, cg+eisenstat
+    8,   #  7 — Poisson 2-D large         → minres+gamg, fcg+gamg
+    3,   #  8 — Poisson 3-D small         → cg+ilu, cg+eisenstat
+    8,   #  9 — Poisson 3-D large         → minres+gamg, fcg+gamg
+    5,   # 10 — conv-diff 2-D small       → fbcgsr+jacobi, dgmres+none
+    8,   # 11 — conv-diff 2-D large       → gmres+gamg, fgmres+gamg, cgs+gamg
+    6,   # 12 — conv-diff 3-D large       → gmres+gamg, fgmres+gamg
+    4,   # 13 — aniso Poisson 2-D small   → cg+ilu (ILU degrades with anisotropy)
+    8,   # 14 — aniso Poisson 2-D large   → minres+gamg, fcg+gamg (GAMG handles anisotropy)
+    6,   # 15 — Helmholtz 2-D             → symmlq+*, minres+gamg (indefinite sym)
+    4,   # 16 — random banded             → cr+ilu, cg+ilu (banded ILU is exact)
+], dtype=np.float64)
+_BUCKET_WEIGHTS /= _BUCKET_WEIGHTS.sum()
+
+
 def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str]:
     """
-    Uniformly pick one of 8 buckets and return (A, type_name).
+    Pick one of 17 weighted buckets and return (A, type_name).
 
-    Buckets:
-      0 — small SPD          n ∈ [100,  1 000],  d ∈ [0.02, 0.08]
-      1 — sym indefinite     n ∈ [100,  2 000],  d ∈ [0.02, 0.08]   → "sym"
-      2 — small non-sym      n ∈ [100,  1 000],  d ∈ [0.02, 0.08]
-      3 — large non-sym      n ∈ [1 000, 20 000], NNZ/row ∈ [5, 20]
-      4 — small Poisson 2-D  nx ∈ [10,   50]  → n up to   2 500
-      5 — large Poisson 2-D  nx ∈ [50,  142]  → n up to ~20 000
-      6 — small Poisson 3-D  nx ∈ [5,    15]  → n up to   3 375
-      7 — large Poisson 3-D  nx ∈ [15,   27]  → n up to ~19 683
+    type_name controls which solver pairs are benchmarked (via APPLICABLE):
+      "spd"      — all 19 pairs
+      "sym"      — symmetric-indefinite; excludes cg and icc
+      "nonsym"   — general; excludes symmetric-only KSPs and icc
+      "poisson2d"— all 19 pairs (SPD with PDE structure)
+      "poisson3d"— all 19 pairs
     """
-    choice = int(rng.integers(0, 8))
-    if choice == 0:
+    bucket = int(rng.choice(len(_BUCKET_WEIGHTS), p=_BUCKET_WEIGHTS))
+
+    if bucket == 0:                          # small SPD
         n = int(rng.integers(100, 1_000))
         d = float(rng.uniform(0.02, 0.08))
         return random_spd(n, d, rng), "spd"
-    elif choice == 1:
+
+    elif bucket == 1:                        # sym indefinite small
         n = int(rng.integers(100, 2_000))
         d = float(rng.uniform(0.02, 0.08))
         return shifted_spd(n, d, rng), "sym"
-    elif choice == 2:
+
+    elif bucket == 2:                        # sym indefinite large
+        n = int(rng.integers(2_000, 10_000))
+        d = float(rng.uniform(5, 20)) / n
+        return shifted_spd(n, d, rng), "sym"
+
+    elif bucket == 3:                        # nonsym small
         n = int(rng.integers(100, 1_000))
         d = float(rng.uniform(0.02, 0.08))
         return random_nonsymmetric(n, d, rng), "nonsym"
-    elif choice == 3:
-        n = int(rng.integers(1_000, 20_000))
-        d = float(rng.uniform(5, 20)) / n   # cap NNZ/row to avoid memory blowup
+
+    elif bucket == 4:                        # nonsym medium
+        n = int(rng.integers(1_000, 5_000))
+        d = float(rng.uniform(5, 20)) / n
         return random_nonsymmetric(n, d, rng), "nonsym"
-    elif choice == 4:
+
+    elif bucket == 5:                        # nonsym large
+        n = int(rng.integers(5_000, 20_000))
+        d = float(rng.uniform(5, 20)) / n
+        return random_nonsymmetric(n, d, rng), "nonsym"
+
+    elif bucket == 6:                        # Poisson 2-D small
         nx = int(rng.integers(10, 50))
         return poisson_2d(nx), "poisson2d"
-    elif choice == 5:
-        nx = int(rng.integers(50, 142))      # n up to 141² ≈ 20 000
+
+    elif bucket == 7:                        # Poisson 2-D large → n ≤ 40 000
+        nx = int(rng.integers(70, 201))
         return poisson_2d(nx), "poisson2d"
-    elif choice == 6:
+
+    elif bucket == 8:                        # Poisson 3-D small
         nx = int(rng.integers(5, 15))
         return poisson_3d(nx), "poisson3d"
-    else:
-        nx = int(rng.integers(15, 28))       # n up to 27³ ≈ 19 683
+
+    elif bucket == 9:                        # Poisson 3-D large → n ≤ 42 875
+        nx = int(rng.integers(15, 36))
         return poisson_3d(nx), "poisson3d"
+
+    elif bucket == 10:                       # conv-diff 2-D small
+        nx  = int(rng.integers(10, 50))
+        eps = float(rng.uniform(0.001, 0.1))
+        bx  = float(rng.uniform(-2.0, 2.0))
+        by  = float(rng.uniform(-2.0, 2.0))
+        return convection_diffusion_2d(nx, eps, bx, by), "nonsym"
+
+    elif bucket == 11:                       # conv-diff 2-D large → n ≤ 40 000
+        nx  = int(rng.integers(70, 201))
+        eps = float(rng.uniform(0.001, 0.05))
+        bx  = float(rng.uniform(-2.0, 2.0))
+        by  = float(rng.uniform(-2.0, 2.0))
+        return convection_diffusion_2d(nx, eps, bx, by), "nonsym"
+
+    elif bucket == 12:                       # conv-diff 3-D large → n ≤ 27 000
+        nx  = int(rng.integers(10, 31))
+        eps = float(rng.uniform(0.001, 0.05))
+        bx  = float(rng.uniform(-2.0, 2.0))
+        by  = float(rng.uniform(-2.0, 2.0))
+        bz  = float(rng.uniform(-2.0, 2.0))
+        return convection_diffusion_3d(nx, eps, bx, by, bz), "nonsym"
+
+    elif bucket == 13:                       # aniso Poisson 2-D small
+        nx  = int(rng.integers(10, 50))
+        eps = float(rng.uniform(0.001, 0.1))
+        return anisotropic_poisson_2d(nx, eps), "poisson2d"
+
+    elif bucket == 14:                       # aniso Poisson 2-D large → n ≤ 40 000
+        nx  = int(rng.integers(70, 201))
+        eps = float(rng.uniform(0.001, 0.05))
+        return anisotropic_poisson_2d(nx, eps), "poisson2d"
+
+    elif bucket == 15:                       # Helmholtz 2-D (symmetric indefinite)
+        nx  = int(rng.integers(20, 141))
+        h   = 1.0 / (nx + 1)
+        # k scales with grid so the Helmholtz parameter k·h ∈ [0.3, 1.5]
+        k   = float(rng.uniform(0.3, 1.5)) / h
+        return helmholtz_2d(nx, k), "sym"
+
+    else:                                    # bucket == 16: random banded
+        n   = int(rng.integers(500, 20_000))
+        bw  = int(rng.integers(1, min(50, n // 4)))
+        return random_banded(n, bw, rng), "nonsym"
 
 
 # ── PETSc interface ───────────────────────────────────────────────────────────

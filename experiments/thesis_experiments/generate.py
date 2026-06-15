@@ -91,50 +91,63 @@ def main() -> None:
     rng      = np.random.default_rng(SEED)
     out_path = os.path.join(DATA_DIR, "dataset.h5")
 
+    log.info("─" * 60)
+    log.info("  generate.py — thesis_experiments")
+    log.info("  DATA_DIR     : %s", DATA_DIR)
+    log.info("  N_SAMPLES    : %d", N_SAMPLES)
+    log.info("  IMAGE_MODE   : %s  IMAGE_SIZE: %d", IMAGE_MODE, IMAGE_SIZE)
+    log.info("  STORE_MATRIX : %s", STORE_MATRIX)
+    log.info("  SEED         : %d", SEED)
+    log.info("  Solvers      : %d  (%s … %s)", N_SOLVERS, SOLVER_NAMES[0], SOLVER_NAMES[-1])
+    if os.path.exists(out_path):
+        with h5py.File(out_path, "r") as _f:
+            n_existing = len(_f["labels"])
+        log.info("  Existing file: %s  (%d samples) — will APPEND", out_path, n_existing)
+    else:
+        log.info("  Output       : %s  (new file)", out_path)
+    log.info("─" * 60)
+
     # Tell PETSc not to hard-abort on non-convergence
     PETSc.Options()["ksp_error_if_not_converged"] = False
 
     saved = skipped = 0
     label_counts = np.zeros(N_SOLVERS, dtype=int)
 
-    with h5py.File(out_path, "w") as f:
-        ds_img  = f.create_dataset(
-            "images",   shape=(0, IMAGE_SIZE, IMAGE_SIZE),
-            maxshape=(None, IMAGE_SIZE, IMAGE_SIZE),
-            dtype="f4", chunks=(64, IMAGE_SIZE, IMAGE_SIZE),
-        )
-        ds_feat = f.create_dataset(
-            "features", shape=(0, N_FEATURES),
-            maxshape=(None, N_FEATURES),
-            dtype="f4", chunks=(256, N_FEATURES),
-        )
-        ds_lbl = f.create_dataset(
-            "labels", shape=(0,), maxshape=(None,),
-            dtype="i4", chunks=(256,),
-        )
-        ds_times = f.create_dataset(
-            "runtimes", shape=(0, N_SOLVERS), maxshape=(None, N_SOLVERS),
-            dtype="f4", chunks=(256, N_SOLVERS),
-        )
-        ds_src = f.create_dataset(
-            "source", shape=(0,), maxshape=(None,),
-            dtype=h5py.string_dtype(), chunks=(256,),
-        )
-        ds_top3 = f.create_dataset(
-            "top3_labels", shape=(0, 3), maxshape=(None, 3),
-            dtype="i1", chunks=(256, 3),
-        )
-        f.attrs["solvers"]    = SOLVER_NAMES
-        f.attrs["image_mode"] = IMAGE_MODE
-
+    def _open_or_create(path):
+        f = h5py.File(path, "a")
+        def _ensure(name, **kwargs):
+            if name not in f:
+                f.create_dataset(name, **kwargs)
+        _ensure("images",      shape=(0, IMAGE_SIZE, IMAGE_SIZE),
+                maxshape=(None, IMAGE_SIZE, IMAGE_SIZE),
+                dtype="f4", chunks=(64, IMAGE_SIZE, IMAGE_SIZE))
+        _ensure("features",    shape=(0, N_FEATURES), maxshape=(None, N_FEATURES),
+                dtype="f4", chunks=(256, N_FEATURES))
+        _ensure("labels",      shape=(0,), maxshape=(None,), dtype="i4", chunks=(256,))
+        _ensure("runtimes",    shape=(0, N_SOLVERS), maxshape=(None, N_SOLVERS),
+                dtype="f4", chunks=(256, N_SOLVERS))
+        _ensure("source",      shape=(0,), maxshape=(None,),
+                dtype=h5py.string_dtype(), chunks=(256,))
+        _ensure("top3_labels", shape=(0, 3), maxshape=(None, 3),
+                dtype="i1", chunks=(256, 3))
+        if "solvers"    not in f.attrs: f.attrs["solvers"]    = SOLVER_NAMES
+        if "image_mode" not in f.attrs: f.attrs["image_mode"] = IMAGE_MODE
         if STORE_MATRIX:
             vlen_f32 = h5py.vlen_dtype(np.float32)
             vlen_i32 = h5py.vlen_dtype(np.int32)
-            ds_mdata   = f.create_dataset("mat_data",   shape=(0,), maxshape=(None,), dtype=vlen_f32)
-            ds_mindices= f.create_dataset("mat_indices", shape=(0,), maxshape=(None,), dtype=vlen_i32)
-            ds_mindptr = f.create_dataset("mat_indptr",  shape=(0,), maxshape=(None,), dtype=vlen_i32)
-            ds_mshape  = f.create_dataset("mat_shape",   shape=(0, 2), maxshape=(None, 2), dtype="i4", chunks=(256, 2))
-            f.attrs["has_matrix_data"] = True
+            _ensure("mat_data",    shape=(0,),   maxshape=(None,),   dtype=vlen_f32)
+            _ensure("mat_indices", shape=(0,),   maxshape=(None,),   dtype=vlen_i32)
+            _ensure("mat_indptr",  shape=(0,),   maxshape=(None,),   dtype=vlen_i32)
+            _ensure("mat_shape",   shape=(0, 2), maxshape=(None, 2), dtype="i4", chunks=(256, 2))
+            if "has_matrix_data" not in f.attrs: f.attrs["has_matrix_data"] = True
+        return f
+
+    with _open_or_create(out_path) as f:
+        n_before = len(f["labels"])
+        log.info("Dataset at %s — %d existing samples, adding %d more.",
+                 out_path, n_before, N_SAMPLES)
+
+        if STORE_MATRIX:
             log.info("STORE_MATRIX=1 — raw CSR data will be saved alongside each sample.")
 
         while saved < N_SAMPLES:
@@ -147,33 +160,37 @@ def main() -> None:
                 log.warning("No solver converged (skipped=%d); trying next sample.", skipped)
                 continue
 
-            # Grow datasets and append
-            for ds in (ds_img, ds_feat, ds_lbl, ds_times, ds_src, ds_top3):
-                ds.resize(saved + 1, axis=0)
-            ds_img[saved]    = sparsity_image(A)
-            ds_feat[saved]   = matrix_features(A)
-            ds_lbl[saved]    = label
-            ds_times[saved]  = solver_times
-            ds_src[saved]    = f"synthetic/{mat_type}"
-            ds_top3[saved]   = top3
+            n = n_before + saved
+            for ds in ("images", "features", "labels", "runtimes", "source", "top3_labels"):
+                f[ds].resize(n + 1, axis=0)
+            f["images"][n]      = sparsity_image(A)
+            f["features"][n]    = matrix_features(A)
+            f["labels"][n]      = label
+            f["runtimes"][n]    = solver_times
+            f["source"][n]      = f"synthetic/{mat_type}"
+            f["top3_labels"][n] = top3
 
             if STORE_MATRIX:
                 csr = A.tocsr()
-                for ds in (ds_mdata, ds_mindices, ds_mindptr, ds_mshape):
-                    ds.resize(saved + 1, axis=0)
-                ds_mdata[saved]    = csr.data.astype(np.float32)
-                ds_mindices[saved] = csr.indices.astype(np.int32)
-                ds_mindptr[saved]  = csr.indptr.astype(np.int32)
-                ds_mshape[saved]   = csr.shape
+                for ds in ("mat_data", "mat_indices", "mat_indptr", "mat_shape"):
+                    f[ds].resize(n + 1, axis=0)
+                f["mat_data"][n]    = csr.data.astype(np.float32)
+                f["mat_indices"][n] = csr.indices.astype(np.int32)
+                f["mat_indptr"][n]  = csr.indptr.astype(np.int32)
+                f["mat_shape"][n]   = csr.shape
+
+            f.flush()
 
             label_counts[label] += 1
             saved += 1
             if saved % 200 == 0:
                 log.info("Progress  %d / %d  (skipped=%d)", saved, N_SAMPLES, skipped)
 
-    log.info("Saved %d samples to %s  (skipped=%d)", saved, out_path, skipped)
-    log.info("Label distribution: %s",
-             {SOLVER_NAMES[i]: int(label_counts[i]) for i in range(N_SOLVERS)})
+    log.info("Saved %d samples → %s  (skipped=%d, total=%d)",
+             saved, out_path, skipped, n_before + saved)
+    log.info("Label distribution (this run): %s",
+             {SOLVER_NAMES[i]: int(label_counts[i]) for i in range(N_SOLVERS)
+              if label_counts[i] > 0})
 
 
 if __name__ == "__main__":

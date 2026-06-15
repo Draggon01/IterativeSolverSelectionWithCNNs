@@ -148,6 +148,21 @@ def main() -> None:
     rng      = np.random.default_rng(SEED)
     out_path = os.path.join(DATA_DIR, "dataset.h5")
 
+    log.info("─" * 60)
+    log.info("  mm_generate.py — mm_baseline")
+    log.info("  DATA_DIR     : %s", DATA_DIR)
+    log.info("  N_SAMPLES    : %d  (to add)", N_SAMPLES)
+    log.info("  STORE_MATRIX : %s", STORE_MATRIX)
+    log.info("  SEED         : %d", SEED)
+    log.info("  Solvers      : %d  (%s … %s)", MM_N_SOLVERS, MM_SOLVER_NAMES[0], MM_SOLVER_NAMES[-1])
+    if os.path.exists(out_path):
+        with h5py.File(out_path, "r") as _f:
+            n_existing = len(_f["labels"])
+        log.info("  Existing file: %s  (%d samples) — will APPEND", out_path, n_existing)
+    else:
+        log.info("  Output       : %s  (new file)", out_path)
+    log.info("─" * 60)
+
     from petsc4py import PETSc
     PETSc.Options()["ksp_error_if_not_converged"] = False
 
