@@ -32,7 +32,7 @@ from petsc4py import PETSc
 
 from generators import (
     random_spd, random_nonsymmetric, poisson_2d, poisson_3d,
-    sample_matrix, run_ksp,
+    sample_matrix, run_ksp, MAX_ITER,
 )
 from model import (
     matrix_features, sparsity_image,
@@ -66,6 +66,7 @@ def best_solver_label(
       top3     — int8 (3,); indices of the 3 fastest converging solvers,
                  ranked by wall time; -1 where fewer than k solvers converged
     """
+    n = A.shape[0]
     all_times: np.ndarray = np.full(N_SOLVERS, np.nan, dtype=np.float32)
     converged: dict[tuple, float] = {}
     for pair in APPLICABLE[mat_type]:
@@ -74,8 +75,10 @@ def best_solver_label(
         if ok:
             converged[pair] = t
             all_times[SOLVER_IDX[pair]] = float(t)
-        log.debug("  %-8s+%-8s  ok=%-5s  iters=%-4d  t=%.4fs",
-                  ksp_type, pc_type, ok, iters, t)
+        if VERBOSE:
+            status = "OK    " if ok else ("MAXITER" if iters >= MAX_ITER else "DIVERG ")
+            log.info("    %-10s+%-10s  n=%-6d  %s  iters=%-5d  t=%.3fs",
+                     ksp_type, pc_type, n, status, iters, t)
 
     top3 = np.full(3, -1, dtype=np.int8)
     if not converged:
