@@ -48,6 +48,10 @@ N_SAMPLES    = int(os.getenv("N_SAMPLES",    "1000"))
 DATA_DIR     = os.getenv("DATA_DIR",         "/workspace/data")
 SEED         = int(os.getenv("SEED",         "42"))
 STORE_MATRIX = os.getenv("STORE_MATRIX", "0") == "1"
+VERBOSE      = os.getenv("VERBOSE", "0") == "1"
+
+if VERBOSE:
+    logging.getLogger().setLevel(logging.DEBUG)
 
 
 def best_solver_label(
@@ -156,12 +160,16 @@ def main() -> None:
         while saved < N_SAMPLES:
             A, mat_type = sample_matrix(rng)
             b           = rng.standard_normal(A.shape[0])
+            log.info("Trying  #%d  type=%-10s  n=%-6d  nnz=%d",
+                     n_before + saved + 1, mat_type, A.shape[0], A.nnz)
 
             label, solver_times, top3 = best_solver_label(A, b, mat_type)
             if label is None:
                 skipped += 1
-                log.warning("No solver converged (skipped=%d); trying next sample.", skipped)
+                log.warning("  → no solver converged  (saved=%d skipped=%d)", saved, skipped)
                 continue
+            log.info("  → best: %s  (saved=%d skipped=%d)",
+                     SOLVER_NAMES[label], saved + 1, skipped)
 
             n = n_before + saved
             core_datasets = ("features", "labels", "runtimes", "source", "top3_labels")
