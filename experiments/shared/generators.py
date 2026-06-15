@@ -225,6 +225,44 @@ def random_banded(n: int, bandwidth: int, rng: np.random.Generator) -> sp.csr_ma
     )
 
 
+def sym_banded_indefinite(n: int, bandwidth: int, rng: np.random.Generator) -> sp.csr_matrix:
+    """
+    Symmetric banded indefinite matrix: symmetric banded SPD structure shifted
+    slightly to introduce a few negative eigenvalues.
+    SOR sweep aligns with banded structure → symmlq+sor wins over symmlq+jacobi.
+    Classified as 'sym'.
+    """
+    diags_data: list[np.ndarray] = []
+    offsets: list[int] = []
+    row_abs = np.zeros(n)
+    for k in range(1, bandwidth + 1):
+        size = n - k
+        vals = rng.uniform(-1.0, 1.0, size)
+        diags_data += [vals, vals.copy()]
+        offsets    += [-k, k]
+        row_abs[k:]    += np.abs(vals)
+        row_abs[:size] += np.abs(vals)
+    diag = row_abs + rng.uniform(0.5, 1.5, n)
+    diags_data.append(diag)
+    offsets.append(0)
+    A = sp.diags(diags_data, offsets, shape=(n, n), format="csr", dtype=np.float64)
+    # Mild shift: 5–20% of mean diagonal → mildly indefinite
+    shift = float(rng.uniform(0.05, 0.20)) * float(A.diagonal().mean())
+    A = A - shift * sp.eye(n, format="csr")
+    A = A + sp.diags(np.where(np.abs(A.diagonal()) < 1e-10, 1e-4, 0.0))
+    return A.tocsr()
+
+
+def convection_diffusion_2d_moderate(
+    nx: int, eps: float, bx: float, by: float
+) -> sp.csr_matrix:
+    """
+    Convection-diffusion 2D with moderate Peclet number (eps=0.1–0.8).
+    GAMG works reliably at moderate convection → cgs+gamg and fgmres+gamg compete.
+    """
+    return convection_diffusion_2d(nx, eps, bx, by)
+
+
 # Sampling weights for the 17 buckets in sample_matrix.
 # Unnormalised integers — divided below so the sum is always exactly 1.
 #
@@ -250,33 +288,39 @@ _BUCKET_WEIGHTS = np.array([
     8,   # 14 — aniso Poisson 2-D large   → minres+gamg, fcg+gamg (GAMG handles anisotropy)
     6,   # 15 — Helmholtz 2-D             → symmlq+*, minres+gamg (indefinite sym)
     4,   # 16 — random banded             → cr+ilu, cg+ilu (banded ILU is exact)
+    6,   # 17 — conv-diff 2D moderate     → cgs+gamg, fgmres+gamg (moderate Pe, GAMG reliable)
+    6,   # 18 — very large Poisson 2D     → fcg+gamg (ILU fill-in too expensive, GAMG only viable)
+    5,   # 19 — sym banded indefinite     → symmlq+sor (SOR sweep matches banded structure)
 ], dtype=np.float64)
 _BUCKET_WEIGHTS /= _BUCKET_WEIGHTS.sum()
 
 _BUCKET_NAMES = [
-    "spd-small",        #  0
-    "sym-indef-small",  #  1
-    "sym-indef-large",  #  2
-    "nonsym-small",     #  3
-    "nonsym-medium",    #  4
-    "nonsym-large",     #  5
-    "poisson2d-small",  #  6
-    "poisson2d-large",  #  7
-    "poisson3d-small",  #  8
-    "poisson3d-large",  #  9
-    "convdiff2d-small", # 10
-    "convdiff2d-large", # 11
-    "convdiff3d-large", # 12
-    "aniso2d-small",    # 13
-    "aniso2d-large",    # 14
-    "helmholtz2d",      # 15
-    "banded",           # 16
+    "spd-small",           #  0
+    "sym-indef-small",     #  1
+    "sym-indef-large",     #  2
+    "nonsym-small",        #  3
+    "nonsym-medium",       #  4
+    "nonsym-large",        #  5
+    "poisson2d-small",     #  6
+    "poisson2d-large",     #  7
+    "poisson3d-small",     #  8
+    "poisson3d-large",     #  9
+    "convdiff2d-small",    # 10
+    "convdiff2d-large",    # 11
+    "convdiff3d-large",    # 12
+    "aniso2d-small",       # 13
+    "aniso2d-large",       # 14
+    "helmholtz2d",         # 15
+    "banded",              # 16
+    "convdiff2d-moderate", # 17 → cgs+gamg
+    "poisson2d-xlarge",    # 18 → fcg+gamg
+    "sym-banded-indef",    # 19 → symmlq+sor
 ]
 
 
 def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str, str]:
     """
-    Pick one of 17 weighted buckets and return (A, type_name, bucket_name).
+    Pick one of 20 weighted buckets and return (A, type_name, bucket_name).
 
     type_name controls which solver pairs are benchmarked (via APPLICABLE):
       "spd"      — all 19 pairs
@@ -373,10 +417,26 @@ def sample_matrix(rng: np.random.Generator) -> tuple[sp.csr_matrix, str, str]:
         k   = float(rng.uniform(0.3, 1.5)) / h
         return helmholtz_2d(nx, k), "sym", bn
 
-    else:                                    # bucket == 16: random banded
+    elif bucket == 16:                       # random banded
         n   = int(rng.integers(500, 20_000))
         bw  = int(rng.integers(1, min(50, n // 4)))
         return random_banded(n, bw, rng), "nonsym", bn
+
+    elif bucket == 17:                       # conv-diff 2D moderate Pe → cgs+gamg
+        nx  = int(rng.integers(50, 151))
+        eps = float(rng.uniform(0.1, 0.8))  # moderate: GAMG reliable, CGS stable
+        bx  = float(rng.uniform(-2.0, 2.0))
+        by  = float(rng.uniform(-2.0, 2.0))
+        return convection_diffusion_2d(nx, eps, bx, by), "nonsym", bn
+
+    elif bucket == 18:                       # very large Poisson 2D → fcg+gamg
+        nx  = int(rng.integers(200, 301))   # n ∈ [40000, 90000]: ILU fill expensive
+        return poisson_2d(nx), "poisson2d", bn
+
+    else:                                    # bucket == 19: sym banded indefinite → symmlq+sor
+        n   = int(rng.integers(1_000, 15_000))
+        bw  = int(rng.integers(2, 20))      # narrow band: SOR sweep is effective
+        return sym_banded_indefinite(n, bw, rng), "sym", bn
 
 
 # ── PETSc interface ───────────────────────────────────────────────────────────
