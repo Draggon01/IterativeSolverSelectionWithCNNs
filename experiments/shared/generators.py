@@ -45,13 +45,14 @@ def random_nonsymmetric(n: int, density: float, rng: np.random.Generator) -> sp.
 
 def shifted_spd(n: int, density: float, rng: np.random.Generator) -> sp.csr_matrix:
     """
-    Symmetric indefinite matrix: an SPD matrix shifted to introduce negative eigenvalues.
-    Classified as 'sym' — enables symmlq, cr, fcg, minres and their preconditioners.
+    Symmetric indefinite matrix: an SPD matrix shifted to introduce a small number
+    of negative eigenvalues.  Shift is kept to 5–15% of the mean diagonal so the
+    matrix remains mildly indefinite and MINRES/SYMMLQ can still converge.
+    Classified as 'sym'.
     """
     A     = random_spd(n, density, rng)
-    shift = float(rng.uniform(0.3, 0.8)) * float(A.diagonal().mean())
+    shift = float(rng.uniform(0.05, 0.15)) * float(A.diagonal().mean())
     A     = A - shift * sp.eye(n, format="csr")
-    # Ensure no fully zero rows (PETSc requirement)
     A     = A + sp.diags(np.where(np.abs(A.diagonal()) < 1e-10, 1e-4, 0.0))
     return A.tocsr()
 
@@ -233,18 +234,18 @@ def random_banded(n: int, bandwidth: int, rng: np.random.Generator) -> sp.csr_ma
 # GMRES+GAMG and MINRES/SYMMLQ respectively.
 _BUCKET_WEIGHTS = np.array([
     3,   #  0 — small SPD                 → cg+ilu, cg+eisenstat, cg+bjacobi
-    4,   #  1 — sym indefinite small      → symmlq+*, cr+*
-    4,   #  2 — sym indefinite large      → symmlq+*, cr+*, minres+gamg
+    3,   #  1 — sym indefinite small      → symmlq+*, cr+*
+    3,   #  2 — sym indefinite large      → symmlq+*, cr+*, minres+gamg
     3,   #  3 — nonsym small              → fbcgsr+jacobi, bcgsl+none
     5,   #  4 — nonsym medium             → fbcgsr+ilu, dgmres+none
     7,   #  5 — nonsym large              → bcgsl+asm, cgs+gamg, fgmres+gamg
     3,   #  6 — Poisson 2-D small         → cg+ilu, cg+eisenstat
-    8,   #  7 — Poisson 2-D large         → minres+gamg, fcg+gamg
+   10,   #  7 — Poisson 2-D large         → minres+gamg, fcg+gamg, cgs+gamg (reliable GAMG wins)
     3,   #  8 — Poisson 3-D small         → cg+ilu, cg+eisenstat
-    8,   #  9 — Poisson 3-D large         → minres+gamg, fcg+gamg
+   10,   #  9 — Poisson 3-D large         → minres+gamg, fcg+gamg, cgs+gamg (reliable GAMG wins)
     5,   # 10 — conv-diff 2-D small       → fbcgsr+jacobi, dgmres+none
-    8,   # 11 — conv-diff 2-D large       → gmres+gamg, fgmres+gamg, cgs+gamg
-    6,   # 12 — conv-diff 3-D large       → gmres+gamg, fgmres+gamg
+    5,   # 11 — conv-diff 2-D large       → fbcgsr+ilu, bcgsl+asm (GAMG unreliable here)
+    4,   # 12 — conv-diff 3-D large       → fbcgsr+ilu, bcgsl+asm
     4,   # 13 — aniso Poisson 2-D small   → cg+ilu (ILU degrades with anisotropy)
     8,   # 14 — aniso Poisson 2-D large   → minres+gamg, fcg+gamg (GAMG handles anisotropy)
     6,   # 15 — Helmholtz 2-D             → symmlq+*, minres+gamg (indefinite sym)
