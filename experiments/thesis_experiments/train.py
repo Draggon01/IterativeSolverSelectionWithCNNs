@@ -2,19 +2,21 @@
 train_solver_selector.py — Train the CNN+MLP solver-selection classifier.
 
 Reads:   $DATA_DIR/dataset.h5          (produced by generate_data.py)
-Writes:  $CHECKPOINT_DIR/epoch_NNNN.pt (keeps the last KEEP_LAST_N)
-         $LOG_DIR/                     (TensorBoard event files)
+Writes:  $CHECKPOINT_DIR/<EXPERIMENT>/epoch_NNNN.pt
+         $LOG_DIR/<EXPERIMENT>/        (TensorBoard event files)
 
 Environment variables (all optional):
+  EXPERIMENT       Run name for checkpoint/log subdirectory (default "default")
+                   e.g. EXPERIMENT=v2_density128 IMAGE_MODE=density IMAGE_SIZE=128
   DATA_DIR         Path to the HDF5 dataset    (default /workspace/data)
-  CHECKPOINT_DIR   Checkpoint output directory (default /workspace/checkpoints)
-  LOG_DIR          TensorBoard log directory   (default /workspace/logs)
+  CHECKPOINT_DIR   Checkpoint root directory   (default /workspace/checkpoints)
+  LOG_DIR          TensorBoard root directory  (default /workspace/logs)
   MAX_EPOCHS       Total training epochs       (default 100)
   BATCH_SIZE       Mini-batch size             (default 256)
   LEARNING_RATE    Initial AdamW learning rate (default 3e-4)
   CHECKPOINT_EVERY Save a checkpoint every N epochs (default 5)
   KEEP_LAST_N      Number of checkpoints to retain (default 3)
-  VAL_SPLIT        Fraction of data used for validation (default 0.15)
+  VAL_SPLIT        Fraction of data used for validation (default 0.10)
   DEVICE           "cpu", "cuda", or "auto"   (default auto)
 """
 
@@ -26,25 +28,29 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 import h5py
 
-from model import SolverSelectorNet, N_FEATURES, N_SOLVERS, SOLVERS, latest_checkpoint
+from model import SolverSelectorNet, N_FEATURES, N_SOLVERS, SOLVERS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 # ── configuration ─────────────────────────────────────────────────────────────
-DATA_DIR         = os.getenv("DATA_DIR",        "/workspace/data")
-CHECKPOINT_DIR   = os.getenv("CHECKPOINT_DIR",  "/workspace/checkpoints")
-LOG_DIR          = os.getenv("LOG_DIR",          "/workspace/logs")
+EXPERIMENT       = os.getenv("EXPERIMENT",      "default")
+_DATA_DIR        = os.getenv("DATA_DIR",        "/workspace/data")
+_CHECKPOINT_ROOT = os.getenv("CHECKPOINT_DIR",  "/workspace/checkpoints")
+_LOG_ROOT        = os.getenv("LOG_DIR",          "/workspace/logs")
+DATA_DIR         = _DATA_DIR
+CHECKPOINT_DIR   = os.path.join(_CHECKPOINT_ROOT, EXPERIMENT)
+LOG_DIR          = os.path.join(_LOG_ROOT,         EXPERIMENT)
 MAX_EPOCHS       = int(os.getenv("MAX_EPOCHS",   "100"))
 BATCH_SIZE       = int(os.getenv("BATCH_SIZE",   "256"))
 LR               = float(os.getenv("LEARNING_RATE", "3e-4"))
 CHECKPOINT_EVERY = int(os.getenv("CHECKPOINT_EVERY", "5"))
 KEEP_LAST_N      = int(os.getenv("KEEP_LAST_N",  "3"))
-VAL_SPLIT        = float(os.getenv("VAL_SPLIT",  "0.15"))
+VAL_SPLIT        = float(os.getenv("VAL_SPLIT",  "0.10"))
 
 _dev = os.getenv("DEVICE", "auto")
 DEVICE = torch.device(
@@ -80,8 +86,14 @@ class SolverDataset(Dataset):
     def __getitem__(self, idx: int):
         if self._file is None:
             self._file = h5py.File(self.path, "r")
-        img  = torch.from_numpy(self._file["images"][idx][None])   # (1, H, W)
-        feat = torch.from_numpy(self._file["features"][idx])       # (F,)
+        img  = torch.nan_to_num(
+            torch.from_numpy(self._file["images"][idx][None]),
+            nan=0.0, posinf=1.0, neginf=0.0,
+        )
+        feat = torch.nan_to_num(
+            torch.from_numpy(self._file["features"][idx]),
+            nan=0.0, posinf=1e6, neginf=-1e6,
+        )
         lbl  = int(self._file["labels"][idx])
         return img, feat, lbl
 
@@ -128,19 +140,26 @@ def run_epoch(
     device:    torch.device,
     train:     bool,
 ) -> tuple[float, float]:
-    """Run one epoch; return (mean_loss, accuracy)."""
     model.train(train)
     total_loss = correct = total = 0
+    n_batches = len(loader)
 
     with torch.set_grad_enabled(train):
-        for img, feat, lbl in loader:
+        for batch_idx, (img, feat, lbl) in enumerate(loader):
             img, feat, lbl = img.to(device), feat.to(device), lbl.to(device)
-            logits = model(img, feat)
+            logits = torch.clamp(model(img, feat), -50, 50)
             loss   = criterion(logits, lbl)
+
+            if torch.isnan(loss):
+                log.warning("NaN loss on batch %d — skipping", batch_idx)
+                if train:
+                    optimizer.zero_grad()
+                continue
 
             if train:
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
 
             bs          = len(lbl)
@@ -148,6 +167,13 @@ def run_epoch(
             correct    += (logits.argmax(1) == lbl).sum().item()
             total      += bs
 
+            if train and (batch_idx + 1) % max(1, n_batches // 5) == 0:
+                log.info("  batch %d/%d  loss=%.4f  acc=%.4f",
+                         batch_idx + 1, n_batches,
+                         total_loss / total, correct / total)
+
+    if total == 0:
+        return float("nan"), 0.0
     return total_loss / total, correct / total
 
 
@@ -157,16 +183,27 @@ def main() -> None:
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
-    dataset   = SolverDataset(os.path.join(DATA_DIR, "dataset.h5"))
-    n_val     = max(1, int(len(dataset) * VAL_SPLIT))
-    n_train   = len(dataset) - n_val
-    train_ds, val_ds = random_split(
-        dataset, [n_train, n_val],
-        generator=torch.Generator().manual_seed(42),
-    )
+    h5_path = os.path.join(DATA_DIR, "dataset.h5")
+    dataset = SolverDataset(h5_path)
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=2, pin_memory=True)
-    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
+    # Stratified split: each class contributes VAL_SPLIT fraction to val
+    rng = np.random.default_rng(42)
+    with h5py.File(h5_path, "r") as f:
+        all_labels = f["labels"][:]
+    train_idx, val_idx = [], []
+    for cls in np.unique(all_labels):
+        idx = np.where(all_labels == cls)[0]
+        n_cls_val = max(1, int(len(idx) * VAL_SPLIT))
+        chosen_val = rng.choice(idx, size=n_cls_val, replace=False)
+        train_idx.extend(np.setdiff1d(idx, chosen_val).tolist())
+        val_idx.extend(chosen_val.tolist())
+    train_ds = Subset(dataset, train_idx)
+    val_ds   = Subset(dataset, val_idx)
+
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
+                              num_workers=2, pin_memory=True, drop_last=True)
+    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
+                              num_workers=2, pin_memory=True)
 
     model     = SolverSelectorNet(dataset.n_features, dataset.n_solvers).to(DEVICE)
     criterion = nn.CrossEntropyLoss()
@@ -174,9 +211,10 @@ def main() -> None:
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=MAX_EPOCHS)
     writer    = SummaryWriter(log_dir=LOG_DIR)
 
-    # Resume from the latest checkpoint if one exists
-    start_epoch = 1
-    ckpt_path   = latest_checkpoint()
+    # Resume from the latest checkpoint in this experiment's directory if one exists
+    start_epoch  = 1
+    existing     = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, "epoch_*.pt")))
+    ckpt_path    = existing[-1] if existing else None
     if ckpt_path:
         ckpt = torch.load(ckpt_path, map_location=DEVICE)
         model.load_state_dict(ckpt["model_state"])
@@ -185,8 +223,8 @@ def main() -> None:
         log.info("Resumed from %s  (epoch %d)", ckpt_path, ckpt["epoch"])
 
     log.info(
-        "Training on %s | train=%d  val=%d | epochs=%d  batch=%d  lr=%.1e",
-        DEVICE, n_train, n_val, MAX_EPOCHS, BATCH_SIZE, LR,
+        "Experiment=%s | device=%s | train=%d val=%d | epochs=%d batch=%d lr=%.1e",
+        EXPERIMENT, DEVICE, len(train_idx), len(val_idx), MAX_EPOCHS, BATCH_SIZE, LR,
     )
 
     for epoch in range(start_epoch, MAX_EPOCHS + 1):

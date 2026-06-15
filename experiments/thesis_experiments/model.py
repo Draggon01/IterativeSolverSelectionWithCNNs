@@ -14,33 +14,76 @@ import torch.nn as nn
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-# Every (KSP type, PC type) pair tried during benchmarking.
-# CG/MINRES use ICC (symmetric incomplete Cholesky); general solvers use ILU.
-# "bcgs" is PETSc's internal name for BiCGSTAB.
+# ── THESIS PAIRS (30 combinations) — restore for thesis experiments ───────────
+# Uncomment this block and comment out the BASELINE PAIRS block below to switch
+# back to the full 30-pair thesis set.
+#
+# SOLVER_PAIRS: list[tuple[str, str]] = [
+#     # CG variants — SPD only
+#     ("cg",     "none"),   ("cg",     "jacobi"), ("cg",     "icc"),
+#     ("cg",     "sor"),    ("cg",     "gamg"),
+#     # MINRES variants — symmetric (incl. SPD)
+#     ("minres", "none"),   ("minres", "jacobi"), ("minres", "icc"),
+#     ("minres", "sor"),    ("minres", "gamg"),
+#     # GMRES variants — general
+#     ("gmres",  "none"),   ("gmres",  "jacobi"), ("gmres",  "ilu"),
+#     ("gmres",  "sor"),    ("gmres",  "gamg"),
+#     # BiCG variants — general
+#     ("bicg",   "none"),   ("bicg",   "jacobi"), ("bicg",   "ilu"),
+#     ("bicg",   "sor"),    ("bicg",   "gamg"),
+#     # BiCGSTAB variants — general
+#     ("bcgs",   "none"),   ("bcgs",   "jacobi"), ("bcgs",   "ilu"),
+#     ("bcgs",   "sor"),    ("bcgs",   "gamg"),
+#     # TFQMR variants — general
+#     ("tfqmr",  "none"),   ("tfqmr",  "jacobi"), ("tfqmr",  "ilu"),
+#     ("tfqmr",  "sor"),    ("tfqmr",  "gamg"),
+# ]
+# _SYM_ONLY_KSP = {"cg", "minres"}
+# APPLICABLE: dict[str, list[tuple[str, str]]] = {
+#     "spd":       SOLVER_PAIRS,
+#     "poisson2d": SOLVER_PAIRS,
+#     "poisson3d": SOLVER_PAIRS,
+#     "nonsym":    [p for p in SOLVER_PAIRS
+#                   if p[0] in {"gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"],
+# }
+
+# ── BASELINE PAIRS (19 combinations, MM-AutoSolver paper) ────────────────────
+# Matches baseline/mm_model.py exactly — use this for direct comparison runs.
 SOLVER_PAIRS: list[tuple[str, str]] = [
-    # CG variants — SPD only
-    ("cg",     "none"),   ("cg",     "jacobi"), ("cg",     "icc"),
-    ("cg",     "sor"),    ("cg",     "gamg"),
-    # MINRES variants — symmetric (incl. SPD)
-    ("minres", "none"),   ("minres", "jacobi"), ("minres", "icc"),
-    ("minres", "sor"),    ("minres", "gamg"),
-    # GMRES variants — general
-    ("gmres",  "none"),   ("gmres",  "jacobi"), ("gmres",  "ilu"),
-    ("gmres",  "sor"),    ("gmres",  "gamg"),
-    # BiCG variants — general
-    ("bicg",   "none"),   ("bicg",   "jacobi"), ("bicg",   "ilu"),
-    ("bicg",   "sor"),    ("bicg",   "gamg"),
-    # BiCGSTAB variants — general
-    ("bcgs",   "none"),   ("bcgs",   "jacobi"), ("bcgs",   "ilu"),
-    ("bcgs",   "sor"),    ("bcgs",   "gamg"),
-    # TFQMR variants — general
-    ("tfqmr",  "none"),   ("tfqmr",  "jacobi"), ("tfqmr",  "ilu"),
-    ("tfqmr",  "sor"),    ("tfqmr",  "gamg"),
+    ("fbcgsr", "jacobi"),    # fbcgs+jacobi
+    ("bcgsl",  "none"),      # bcgsl+none
+    ("symmlq", "icc"),       # symmlq+icc      — SPD only
+    ("symmlq", "jacobi"),    # symmlq+jacobi   — symmetric only
+    ("dgmres", "none"),      # dgmres+none
+    ("gmres",  "gamg"),      # gmres+gamg
+    ("cr",     "eisenstat"), # cr+eisenstat    — symmetric only
+    ("symmlq", "sor"),       # symmlq+sor      — symmetric only
+    ("fbcgsr", "ilu"),       # fbcgs+ilu
+    ("minres", "gamg"),      # minres+gamg     — symmetric only
+    ("fcg",    "gamg"),      # fcg+gamg        — symmetric only
+    ("cr",     "jacobi"),    # cr+jacobi       — symmetric only
+    ("cg",     "ilu"),       # cg+ilu          — SPD only
+    ("fgmres", "gamg"),      # fgmres+gamg
+    ("cg",     "eisenstat"), # cg+eisenstat    — SPD only
+    ("cg",     "bjacobi"),   # cg+bjacobi      — SPD only
+    ("cr",     "ilu"),       # cr+ilu          — symmetric only
+    ("cgs",    "gamg"),      # cgs+gamg
+    ("bcgsl",  "asm"),       # bcgsl+asm
 ]
+
+_SYM_ONLY_KSP = {"cg", "minres", "symmlq", "cr", "fcg"}
+APPLICABLE: dict[str, list[tuple[str, str]]] = {
+    "spd":       SOLVER_PAIRS,
+    "sym":       [p for p in SOLVER_PAIRS if p[0] != "cg" and p[1] != "icc"],
+    "poisson2d": SOLVER_PAIRS,
+    "poisson3d": SOLVER_PAIRS,
+    "nonsym":    [p for p in SOLVER_PAIRS
+                  if p[0] not in _SYM_ONLY_KSP and p[1] != "icc"],
+}
 
 SOLVER_NAMES: list[str]        = [f"{k}+{p}" for k, p in SOLVER_PAIRS]
 SOLVER_IDX:   dict[tuple, int] = {pair: i for i, pair in enumerate(SOLVER_PAIRS)}
-N_SOLVERS:    int               = len(SOLVER_PAIRS)   # 30
+N_SOLVERS:    int               = len(SOLVER_PAIRS)   # 19
 
 SOLVERS = SOLVER_NAMES   # alias kept for HDF5 readers and display code
 

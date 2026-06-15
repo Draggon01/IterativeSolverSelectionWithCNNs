@@ -2,15 +2,11 @@ services:
 
   # Step 1 — generate baseline dataset with paper's features and 128×128 density images
   mm_datagen:
-    build: ../container
-    container_name: mm_datagen
+    build: ../../container
     command: python mm_generate.py
     volumes:
       - ./data:/workspace/data
-      # Shared from main pipeline (matrix generators + PETSc solver interface)
-      - ../src/model.py:/workspace/model.py
-      - ../src/generate_data.py:/workspace/generate_data.py
-      # Baseline-specific scripts
+      - ../shared/generators.py:/workspace/generators.py
       - ./mm_model.py:/workspace/mm_model.py
       - ./mm_generate.py:/workspace/mm_generate.py
     environment:
@@ -19,16 +15,16 @@ services:
       - SEED=${SEED:-42}
       - MAX_ITER=${MAX_ITER:-2000}
       - TOL=${TOL:-1e-8}
+      - STORE_MATRIX=${STORE_MATRIX:-0}
+
   # Step 1b — append SuiteSparse matrices to the baseline dataset (optional)
   mm_ingest:
-    build: ../container
-    container_name: mm_ingest
+    build: ../../container
     command: python mm_ingest.py
     volumes:
       - ./data:/workspace/data
-      - ../src/model.py:/workspace/model.py
-      - ../src/generate_data.py:/workspace/generate_data.py
-      - ../src/ingest_suitesparse.py:/workspace/ingest_suitesparse.py
+      - ../shared/generators.py:/workspace/generators.py
+      - ../shared/matrix_io.py:/workspace/matrix_io.py
       - ./mm_model.py:/workspace/mm_model.py
       - ./mm_ingest.py:/workspace/mm_ingest.py
     environment:
@@ -43,16 +39,15 @@ services:
       - TOL=${TOL:-1e-8}
       - SOLVER_TIMEOUT=${SOLVER_TIMEOUT:-60}
       # - MTX_DIR=/workspace/data/mtx   # for manual mode
+
   # Step 1c — ingest the 621 hardcoded benchmark matrices from SuiteSparse
   mm_githubdata_ingest:
-    build: ../container
-    container_name: mm_githubdata_ingest
+    build: ../../container
     command: python mm_ingest.py
     volumes:
       - ./data:/workspace/data
-      - ../src/model.py:/workspace/model.py
-      - ../src/generate_data.py:/workspace/generate_data.py
-      - ../src/ingest_suitesparse.py:/workspace/ingest_suitesparse.py
+      - ../shared/generators.py:/workspace/generators.py
+      - ../shared/matrix_io.py:/workspace/matrix_io.py
       - ./mm_model.py:/workspace/mm_model.py
       - ./mm_ingest.py:/workspace/mm_ingest.py
     environment:
@@ -69,8 +64,7 @@ services:
 
   # Step 1d — trim dataset (suitesparse_only, paper_sizes, or max_per_class)
   mm_trim:
-    build: ../container
-    container_name: mm_trim
+    build: ../../container
     command: python mm_trim.py
     volumes:
       - ./data:/workspace/data
@@ -85,14 +79,12 @@ services:
 
   # Step 2 — train MM-AutoSolver model (Adam, lr=1e-3, 256 epochs, batch=512)
   mm_trainer:
-    build: ../container
-    container_name: mm_trainer
+    build: ../../container
     command: python mm_train.py
     volumes:
       - ./data:/workspace/data
       - ./checkpoints:/workspace/checkpoints
       - ./logs:/workspace/logs
-      - ../src/model.py:/workspace/model.py
       - ./mm_model.py:/workspace/mm_model.py
       - ./mm_train.py:/workspace/mm_train.py
     environment:
@@ -106,8 +98,6 @@ services:
       - CHECKPOINT_EVERY=${CHECKPOINT_EVERY:-10}
       - KEEP_LAST_N=${KEEP_LAST_N:-3}
       - DEVICE=${DEVICE:-auto}
-    depends_on:
-      - mm_datagen
     shm_size: '2gb'
     stop_grace_period: 60s
     deploy:
@@ -120,13 +110,11 @@ services:
 
   # Step 3 — evaluate: Acc, MP, MR, F1 (paper's four metrics)
   mm_evaluate:
-    build: ../container
-    container_name: mm_evaluate
+    build: ../../container
     command: python mm_evaluate.py
     volumes:
       - ./data:/workspace/data
       - ./checkpoints:/workspace/checkpoints
-      - ../src/model.py:/workspace/model.py
       - ./mm_model.py:/workspace/mm_model.py
       - ./mm_train.py:/workspace/mm_train.py
       - ./mm_evaluate.py:/workspace/mm_evaluate.py
@@ -135,13 +123,9 @@ services:
       - CHECKPOINT_DIR=/workspace/checkpoints
       - VAL_SPLIT=0.10
       - DEVICE=auto
-    depends_on:
-      - mm_trainer
-
   # TensorBoard — monitor training loss and accuracy live
   mm_tensorboard:
     image: tensorflow/tensorflow:latest
-    container_name: mm_tensorboard
     command: tensorboard --logdir=/logs --host=0.0.0.0
     ports:
       - "6007:6006"

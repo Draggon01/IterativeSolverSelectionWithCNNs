@@ -167,7 +167,7 @@ def main() -> None:
         A = sp.load_npz(MATRIX_PATH).tocsr().astype(np.float64)
         log.info("Loaded matrix from %s  shape=%s  nnz=%d", MATRIX_PATH, A.shape, A.nnz)
     else:
-        from generate_data import sample_matrix
+        from generate import sample_matrix
         rng = np.random.default_rng(0)
         A, mat_type = sample_matrix(rng)
         log.info("Using random example  type=%s  shape=%s  nnz=%d",

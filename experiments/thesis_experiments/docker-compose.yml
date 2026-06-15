@@ -1,0 +1,175 @@
+services:
+
+  # Step 1: Generate training data (run once, output lands in ./data/ or DATA_DIR)
+  datagen:
+    build: ../../container
+    command: python generate.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ../shared/generators.py:/workspace/generators.py
+      - ./model.py:/workspace/model.py
+      - ./generate.py:/workspace/generate.py
+    environment:
+      - N_SAMPLES=${N_SAMPLES:-10000}
+      - IMAGE_MODE=${IMAGE_MODE:-binary}
+      - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - MAX_ITER=${MAX_ITER:-2000}
+      - TOL=${TOL:-1e-8}
+      - STORE_MATRIX=${STORE_MATRIX:-0}
+      - DATA_DIR=/workspace/data
+
+  # Step 1b: Ingest SuiteSparse matrices via ssgetpy (optional, appends to dataset.h5)
+  ingest:
+    build: ../../container
+    command: python ingest.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ../shared/generators.py:/workspace/generators.py
+      - ../shared/matrix_io.py:/workspace/matrix_io.py
+      - ./model.py:/workspace/model.py
+      - ./ingest.py:/workspace/ingest.py
+    environment:
+      - MODE=${MODE:-auto}
+      - DATA_DIR=/workspace/data
+      - MIN_N=${MIN_N:-100}
+      - MAX_N=${MAX_N:-50000}
+      - N_MATRICES=${N_MATRICES:-200}
+      - ONLY_SPD=${ONLY_SPD:-0}
+      - SEED=${SEED:-0}
+      - MAX_ITER=${MAX_ITER:-2000}
+      - TOL=${TOL:-1e-8}
+      # - MTX_DIR=/workspace/data/mtx   # for manual mode
+
+  # Step 1c: Ingest 621 hardcoded SuiteSparse benchmark matrices (githubdata mode)
+  githubdata_ingest:
+    build: ../../container
+    command: python ingest.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ../shared/generators.py:/workspace/generators.py
+      - ../shared/matrix_io.py:/workspace/matrix_io.py
+      - ./model.py:/workspace/model.py
+      - ./ingest.py:/workspace/ingest.py
+    environment:
+      - MODE=githubdata
+      - DATA_DIR=/workspace/data
+      - CACHE_DIR=/workspace/data/suitesparse_cache
+      - MIN_N=${MIN_N:-100}
+      - MAX_N=${MAX_N:-500000}
+      - N_MATRICES=${N_MATRICES:-621}
+      - SEED=${SEED:-0}
+      - MAX_ITER=${MAX_ITER:-2000}
+      - TOL=${TOL:-1e-8}
+      - SOLVER_TIMEOUT=${SOLVER_TIMEOUT:-60}
+
+  # Step 1d: Trim dataset (max_per_class, suitesparse_only, or paper_sizes)
+  trim:
+    build: ../../container
+    command: python trim.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./model.py:/workspace/model.py
+      - ./trim.py:/workspace/trim.py
+    environment:
+      - MODE=${MODE:-max_per_class}
+      - DATA_DIR=/workspace/data
+      - MAX_PER_CLASS=${MAX_PER_CLASS:-2500}
+      - SUITESPARSE_ONLY=${SUITESPARSE_ONLY:-0}
+      - SEED=${SEED:-42}
+
+  # Step 1e: Re-render images from a base dataset (requires STORE_MATRIX=1 on datagen)
+  render:
+    build: ../../container
+    command: python render.py
+    volumes:
+      - ${SRC_DATA_DIR:-./data/base}:/workspace/data/base
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./model.py:/workspace/model.py
+      - ./render.py:/workspace/render.py
+    environment:
+      - SRC_DATA_DIR=/workspace/data/base
+      - DATA_DIR=/workspace/data
+      - IMAGE_MODE=${IMAGE_MODE:-binary}
+      - IMAGE_SIZE=${IMAGE_SIZE:-64}
+
+  # Step 2: Train the CNN+MLP solver-selection classifier
+  trainer:
+    build: ../../container
+    command: python train.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./checkpoints:/workspace/checkpoints
+      - ./logs:/workspace/logs
+      - ./model.py:/workspace/model.py
+      - ./train.py:/workspace/train.py
+    environment:
+      - EXPERIMENT=${EXPERIMENT:-default}
+      - DATA_DIR=/workspace/data
+      - CHECKPOINT_DIR=/workspace/checkpoints
+      - LOG_DIR=/workspace/logs
+      - MAX_EPOCHS=${MAX_EPOCHS:-100}
+      - BATCH_SIZE=${BATCH_SIZE:-256}
+      - LEARNING_RATE=${LEARNING_RATE:-0.0003}
+      - VAL_SPLIT=${VAL_SPLIT:-0.10}
+      - CHECKPOINT_EVERY=${CHECKPOINT_EVERY:-5}
+      - KEEP_LAST_N=${KEEP_LAST_N:-3}
+      - IMAGE_MODE=${IMAGE_MODE:-binary}
+      - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - DEVICE=${DEVICE:-auto}
+    shm_size: '2gb'
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Step 3: Evaluate — Acc, MP, MR, F1, top-k, near-optimal accuracy
+  evaluate:
+    build: ../../container
+    command: python evaluate.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./checkpoints:/workspace/checkpoints
+      - ./model.py:/workspace/model.py
+      - ./train.py:/workspace/train.py
+      - ./evaluate.py:/workspace/evaluate.py
+    environment:
+      - EXPERIMENT=${EXPERIMENT:-default}
+      - DATA_DIR=/workspace/data
+      - CHECKPOINT_DIR=/workspace/checkpoints
+      - VAL_SPLIT=${VAL_SPLIT:-0.10}
+      - DEVICE=${DEVICE:-auto}
+
+  # Step 4: Run inference on a new matrix
+  predict:
+    build: ../../container
+    command: python predict.py
+    volumes:
+      - ./checkpoints:/workspace/checkpoints
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ../shared/generators.py:/workspace/generators.py
+      - ./model.py:/workspace/model.py
+      - ./generate.py:/workspace/generate.py
+      - ./predict.py:/workspace/predict.py
+      - ./benchmark.py:/workspace/benchmark.py
+      - ./visualize.py:/workspace/visualize.py
+      - ./browse.py:/workspace/browse.py
+      - ./viz:/workspace/viz
+    environment:
+      - EXPERIMENT=${EXPERIMENT:-default}
+      - DATA_DIR=/workspace/data
+      - DEVICE=${DEVICE:-auto}
+      # - MATRIX_PATH=/workspace/data/my_matrix.npz
+      # - BENCHMARK_T=30
+
+  # TensorBoard: live loss + accuracy curves (shows all experiments)
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    command: tensorboard --logdir=/logs --host=0.0.0.0
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./logs:/logs

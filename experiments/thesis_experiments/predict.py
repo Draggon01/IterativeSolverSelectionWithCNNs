@@ -63,7 +63,7 @@ def predict_solver(
 def _example_matrix() -> tuple[sp.csr_matrix, str]:
     """Generate a small random example matrix for demonstration."""
     # Import lazily to keep this module PETSc-free
-    from generate_data import sample_matrix
+    from generate import sample_matrix
     rng = np.random.default_rng(0)
     A, mat_type = sample_matrix(rng)
     return A, mat_type

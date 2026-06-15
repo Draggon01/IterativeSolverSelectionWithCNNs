@@ -39,12 +39,8 @@ import h5py
 import numpy as np
 import scipy.sparse as sp
 
-_src = os.path.join(os.path.dirname(__file__), "..", "src")
-if os.path.isdir(_src) and _src not in sys.path:
-    sys.path.insert(0, os.path.abspath(_src))
-
-# Reuse matrix loading and classification from the main pipeline
-from ingest_suitesparse import load_matrix, classify, run_ksp
+from generators import run_ksp
+from matrix_io import load_matrix, classify
 
 from mm_model import (
     mm_features, mm_density_image, MM_N_FEATURES, MM_IMAGE_SIZE,
@@ -460,7 +456,7 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
             skipped += 1
             continue
 
-        A = load_matrix(hits[0], require_nonzero_diag=False)
+        A = load_matrix(hits[0], require_nonzero_diag=False, min_n=MIN_N, max_n=MAX_N)
         if A is None:
             skipped += 1
             continue
@@ -508,7 +504,7 @@ def run_manual(f: h5py.File, rng: np.random.Generator) -> None:
             saved += 1
             continue
 
-        A = load_matrix(mtx_path)
+        A = load_matrix(mtx_path, min_n=MIN_N, max_n=MAX_N)
         if A is None:
             skipped += 1
             continue
@@ -585,7 +581,7 @@ def _ingest_by_names(f: h5py.File, names: list[str], rng: np.random.Generator,
         exact = os.path.join(CACHE_DIR, name, f"{name}.mtx")
         mtx_path = exact if os.path.isfile(exact) else hits[0]
 
-        A = load_matrix(mtx_path, require_nonzero_diag=False)
+        A = load_matrix(mtx_path, require_nonzero_diag=False, min_n=MIN_N, max_n=MAX_N)
         if A is None:
             skipped += 1
             continue

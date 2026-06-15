@@ -32,17 +32,17 @@ Environment variables:
 import os
 import glob
 import logging
-import time
 
 import numpy as np
-import scipy.sparse as sp
-import scipy.io
 import h5py
 from petsc4py import PETSc
 
+from generators import run_ksp
+from matrix_io import load_matrix, load_mtx, classify
 from model import (
     matrix_features, sparsity_image,
     SOLVER_PAIRS, SOLVER_NAMES, SOLVER_IDX, N_SOLVERS, N_FEATURES, IMAGE_SIZE, IMAGE_MODE,
+    APPLICABLE,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -57,160 +57,7 @@ MIN_N      = int(os.getenv("MIN_N",       "100"))
 MAX_N      = int(os.getenv("MAX_N",       "50000"))
 N_MATRICES = int(os.getenv("N_MATRICES",  "200"))
 ONLY_SPD   = os.getenv("ONLY_SPD",   "0") == "1"
-MAX_ITER   = int(os.getenv("MAX_ITER",    "2000"))
-TOL        = float(os.getenv("TOL",       "1e-8"))
 SEED       = int(os.getenv("SEED",        "0"))
-
-# (KSP, PC) pairs applicable per matrix type.
-# sym: MINRES valid (symmetric), CG excluded (not SPD), ICC excluded (requires SPD).
-_SPD_PAIRS = SOLVER_PAIRS
-_SYM_PAIRS = [p for p in SOLVER_PAIRS
-              if p[0] in {"minres", "gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"]
-_GEN_PAIRS = [p for p in SOLVER_PAIRS
-              if p[0] in {"gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"]
-
-APPLICABLE: dict[str, list[tuple[str, str]]] = {
-    "spd":    _SPD_PAIRS,
-    "sym":    _SYM_PAIRS,
-    "nonsym": _GEN_PAIRS,
-}
-
-
-# ── matrix loading ────────────────────────────────────────────────────────────
-
-def _to_csr(raw) -> "sp.csr_matrix | None":
-    """Convert a raw sparse or dense array to float64 CSR, or return None if complex."""
-    if np.iscomplexobj(raw.data if sp.issparse(raw) else raw):
-        return None
-    return sp.csr_matrix(raw, dtype=np.float64)
-
-
-def load_matrix(path: str, require_nonzero_diag: bool = True) -> "sp.csr_matrix | None":
-    """
-    Load a .mtx (Matrix Market) or .mat (MATLAB) file and return a real square
-    CSR matrix, or None if the matrix is complex, rectangular, or unreadable.
-    Set require_nonzero_diag=False to allow matrices with zero diagonal entries
-    (useful for circuit matrices where only some preconditioners will apply).
-    """
-    ext = os.path.splitext(path)[1].lower()
-    try:
-        if ext == ".mat":
-            data = scipy.io.loadmat(path)
-            # SuiteSparse .mat files: data['Problem']['A'][0,0]
-            if "Problem" in data:
-                raw = data["Problem"]["A"][0, 0]
-            else:
-                # Fall back: take the first sparse/dense value that looks like a matrix
-                raw = next(
-                    (v for v in data.values()
-                     if isinstance(v, np.ndarray) and v.ndim == 2),
-                    None,
-                )
-                if raw is None:
-                    log.warning("Cannot find matrix in %s", path)
-                    return None
-        else:
-            raw = scipy.io.mmread(path)
-    except Exception as exc:
-        log.warning("Cannot read %s: %s", path, exc)
-        return None
-
-    A = _to_csr(raw)
-    if A is None:
-        log.info("Skipping %s — complex matrix.", path)
-        return None
-
-    if A.shape[0] != A.shape[1]:
-        log.info("Skipping %s — rectangular (%d × %d).", path, *A.shape)
-        return None
-
-    n = A.shape[0]
-    if not (MIN_N <= n <= MAX_N):
-        log.info("Skipping %s — size %d outside [%d, %d].", path, n, MIN_N, MAX_N)
-        return None
-
-    A.eliminate_zeros()
-    A.sum_duplicates()
-    A.sort_indices()
-
-    # Empty rows crash PETSc preconditioners (Jacobi/ILU/SOR divide by diagonal)
-    if np.any(np.diff(A.indptr) == 0):
-        log.info("Skipping %s — has empty rows (likely a mass/projection matrix).", path)
-        return None
-
-    # Zero diagonal entries cause Jacobi/SOR preconditioners to divide by zero.
-    # Skip only when strict mode is on; curated lists may relax this.
-    if require_nonzero_diag and np.any(np.abs(A.diagonal()) < 1e-300):
-        log.info("Skipping %s — has zero diagonal entries.", path)
-        return None
-
-    return A
-
-
-# Keep old name as alias so existing callers still work
-load_mtx = load_matrix
-
-
-def classify(A: sp.csr_matrix, isspd: bool = False, issym: bool = False) -> str:
-    """
-    Return "spd", "sym", or "nonsym" for use with APPLICABLE.
-
-    isspd / issym come from ssgetpy metadata when available; otherwise
-    we estimate symmetry from the matrix itself.
-    """
-    if isspd:
-        return "spd"
-    if issym:
-        return "sym"
-    # Estimate: if ||A - A^T||_F / ||A||_F < 0.01 treat as symmetric
-    frob = sp.linalg.norm(A, "fro")
-    if frob < 1e-14:
-        return "nonsym"
-    sym_score = sp.linalg.norm(A - A.T, "fro") / frob
-    if sym_score < 0.01:
-        return "sym"
-    return "nonsym"
-
-
-# ── PETSc interface (same as generate_data.py) ────────────────────────────────
-
-def _csr_to_petsc(A: sp.csr_matrix) -> PETSc.Mat:
-    n   = A.shape[0]
-    mat = PETSc.Mat().createAIJWithArrays(
-        (n, n),
-        (A.indptr.astype(np.int32), A.indices.astype(np.int32), A.data.copy()),
-        comm=PETSc.COMM_SELF,
-    )
-    mat.assemble()
-    return mat
-
-
-def run_ksp(A: sp.csr_matrix, b: np.ndarray, ksp_type: str, pc_type: str = "none") -> tuple[bool, int, float]:
-    mat = _csr_to_petsc(A)
-    x   = mat.createVecRight()
-    rhs = mat.createVecLeft()
-    rhs.setValues(np.arange(len(b), dtype=np.int32), b.astype(np.float64))
-    rhs.assemble()
-
-    ksp = PETSc.KSP().create(PETSc.COMM_SELF)
-    ksp.setOperators(mat)
-    ksp.setType(ksp_type)
-    ksp.getPC().setType(pc_type)
-    ksp.setTolerances(rtol=TOL, atol=1e-50, divtol=1e5, max_it=MAX_ITER)
-
-    t0 = time.perf_counter()
-    try:
-        ksp.solve(rhs, x)
-        elapsed   = time.perf_counter() - t0
-        converged = ksp.getConvergedReason() > 0
-        iters     = ksp.getIterationNumber()
-    except Exception as exc:
-        log.debug("KSP %s+%s raised: %s", ksp_type, pc_type, exc)
-        elapsed, converged, iters = float("inf"), False, -1
-    finally:
-        ksp.destroy(); mat.destroy(); x.destroy(); rhs.destroy()
-
-    return converged, iters, elapsed
 
 
 def benchmark(
@@ -410,7 +257,7 @@ def run_auto(f: h5py.File, rng: np.random.Generator) -> None:
             continue
         mtx_path = hits[0]
 
-        A = load_matrix(mtx_path)
+        A = load_matrix(mtx_path, min_n=MIN_N, max_n=MAX_N)
         if A is None:
             skipped += 1
             continue
@@ -456,7 +303,7 @@ def run_manual(f: h5py.File, rng: np.random.Generator) -> None:
             continue
 
         log.info("Loading %s", mtx_path)
-        A = load_matrix(mtx_path)
+        A = load_matrix(mtx_path, min_n=MIN_N, max_n=MAX_N)
         if A is None:
             skipped += 1
             continue

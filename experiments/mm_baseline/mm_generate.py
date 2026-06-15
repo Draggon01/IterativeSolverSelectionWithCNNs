@@ -13,11 +13,13 @@ architectural comparison on identical training matrices.
 Output: $DATA_DIR/dataset.h5
 
 Environment variables:
-  N_SAMPLES   Number of samples to generate  (default 5000)
-  DATA_DIR    Output directory               (default ./data)
-  SEED        NumPy RNG seed                 (default 42)
-  MAX_ITER    Max KSP iterations per solver  (default 2000)
-  TOL         Relative residual tolerance    (default 1e-8)
+  N_SAMPLES      Number of samples to generate          (default 5000)
+  DATA_DIR       Output directory                       (default ./data)
+  SEED           NumPy RNG seed                         (default 42)
+  MAX_ITER       Max KSP iterations per solver          (default 2000)
+  TOL            Relative residual tolerance            (default 1e-8)
+  STORE_MATRIX   1 = also store raw CSR matrix data     (default 0)
+                 Enables fast image re-rendering without re-running solvers.
 """
 
 import os
@@ -28,15 +30,10 @@ import h5py
 import numpy as np
 import scipy.sparse as sp
 
-# When running locally (outside Docker) add src/ to the path so that
-# `import model` and `import generate_data` resolve to the main pipeline.
-_src = os.path.join(os.path.dirname(__file__), "..", "src")
-if os.path.isdir(_src) and _src not in sys.path:
-    sys.path.insert(0, os.path.abspath(_src))
-
-# Reuse the main pipeline's matrix generators and PETSc interface
-from generate_data import sample_matrix, run_ksp, \
-    random_spd, random_nonsymmetric, poisson_2d, poisson_3d
+from generators import (
+    sample_matrix, run_ksp,
+    random_spd, random_nonsymmetric, poisson_2d, poisson_3d,
+)
 
 from mm_model import (
     mm_features, mm_density_image, MM_N_FEATURES, MM_IMAGE_SIZE,
@@ -46,9 +43,10 @@ from mm_model import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-N_SAMPLES   = int(os.getenv("N_SAMPLES",   "5000"))
-DATA_DIR    = os.getenv("DATA_DIR",        "./data")
-SEED        = int(os.getenv("SEED",        "42"))
+N_SAMPLES    = int(os.getenv("N_SAMPLES",   "5000"))
+DATA_DIR     = os.getenv("DATA_DIR",       "./data")
+SEED         = int(os.getenv("SEED",       "42"))
+STORE_MATRIX = os.getenv("STORE_MATRIX", "0") == "1"
 FORCE_BUCKET = os.getenv("FORCE_BUCKET")   # 0-7 to lock sampler to one bucket
 
 
@@ -174,12 +172,23 @@ def main() -> None:
         if "solvers"    not in f.attrs: f.attrs["solvers"]    = MM_SOLVER_NAMES
         if "n_features" not in f.attrs: f.attrs["n_features"] = MM_N_FEATURES
         if "image_size" not in f.attrs: f.attrs["image_size"] = MM_IMAGE_SIZE
+        if STORE_MATRIX:
+            vlen_f32 = h5py.vlen_dtype(np.float32)
+            vlen_i32 = h5py.vlen_dtype(np.int32)
+            _ensure("mat_data",    shape=(0,),    maxshape=(None,),    dtype=vlen_f32)
+            _ensure("mat_indices", shape=(0,),    maxshape=(None,),    dtype=vlen_i32)
+            _ensure("mat_indptr",  shape=(0,),    maxshape=(None,),    dtype=vlen_i32)
+            _ensure("mat_shape",   shape=(0, 2),  maxshape=(None, 2),  dtype="i4", chunks=(256, 2))
+            if "has_matrix_data" not in f.attrs: f.attrs["has_matrix_data"] = True
         return f
 
     with _open_or_create(out_path) as f:
         n_before = len(f["labels"])
         log.info("Dataset at %s — %d existing samples, adding %d more.",
                  out_path, n_before, N_SAMPLES)
+
+        if STORE_MATRIX:
+            log.info("STORE_MATRIX=1 — raw CSR data will be saved alongside each sample.")
 
         while saved < N_SAMPLES:
             A, mat_type = mm_sample_matrix(rng)
@@ -200,6 +209,16 @@ def main() -> None:
             f["labels"][n]   = label
             f["runtimes"][n] = solver_times
             f["source"][n]   = f"synthetic/{mat_type}"
+
+            if STORE_MATRIX:
+                csr = A.tocsr()
+                for ds_name in ("mat_data", "mat_indices", "mat_indptr", "mat_shape"):
+                    f[ds_name].resize(n + 1, axis=0)
+                f["mat_data"][n]    = csr.data.astype(np.float32)
+                f["mat_indices"][n] = csr.indices.astype(np.int32)
+                f["mat_indptr"][n]  = csr.indptr.astype(np.int32)
+                f["mat_shape"][n]   = csr.shape
+
             f.flush()
 
             label_counts[label] += 1
