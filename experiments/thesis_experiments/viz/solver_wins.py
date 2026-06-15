@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import h5py
 
-DATA_DIR = os.getenv("DATA_DIR", "/workspace/data")
+DATA_DIR = os.getenv("DATA_DIR", "../data")
 OUT_DIR  = os.getenv("OUT_DIR",  os.path.dirname(os.path.abspath(__file__)))
 
 h5_path  = os.path.join(DATA_DIR, "dataset.h5")
