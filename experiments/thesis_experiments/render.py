@@ -31,7 +31,7 @@ import numpy as np
 import scipy.io
 import scipy.sparse as sp
 
-from model import sparsity_image, IMAGE_MODE, IMAGE_SIZE
+from model import sparsity_image, IMAGE_MODE, IMAGE_MODE2, IMAGE_SIZE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ SRC_DATA_DIR = os.getenv("SRC_DATA_DIR", "/workspace/data/base")
 DATA_DIR     = os.getenv("DATA_DIR",     "/workspace/data")
 CACHE_DIR    = os.getenv("CACHE_DIR",    os.path.join(SRC_DATA_DIR, "suitesparse_cache"))
 MODE         = IMAGE_MODE
+MODE2        = IMAGE_MODE2   # empty string = single-channel output
 SIZE         = IMAGE_SIZE
 LOG_EVERY    = int(os.getenv("BATCH_SIZE", "500"))
 
@@ -73,7 +74,12 @@ def _load_from_suitesparse(source: str) -> sp.csr_matrix:
         files = glob.glob(pattern)
     if not files:
         raise RuntimeError(f"No .mtx file found after download for {source}")
-    return sp.csr_matrix(scipy.io.mmread(files[0]))
+    # Some downloads include auxiliary files (e.g. foo_b.mtx for the RHS vector).
+    # Prefer the file whose stem matches the matrix name exactly to avoid loading
+    # a non-square auxiliary file and crashing on A - A.T.
+    exact = [f for f in files if os.path.splitext(os.path.basename(f))[0] == name]
+    chosen = exact[0] if exact else sorted(files)[0]
+    return sp.csr_matrix(scipy.io.mmread(chosen))
 
 
 def _load_from_manual(source: str) -> sp.csr_matrix:
@@ -115,7 +121,8 @@ def main() -> None:
     with h5py.File(src_path, "r") as src:
         n = len(src["labels"])
         log.info("Source: %s  (%d samples)", src_path, n)
-        log.info("Rendering  mode=%s  size=%d → %s", MODE, SIZE, dst_path)
+        mode_str = f"{MODE} + {MODE2}" if MODE2 else MODE
+        log.info("Rendering  mode=%s  size=%d → %s", mode_str, SIZE, dst_path)
 
         # Warn about synthetic rows that lack stored CSR data
         has_any_csr = "mat_data" in src
@@ -129,7 +136,8 @@ def main() -> None:
         tmp_path = dst_path + ".tmp"
 
         with h5py.File(tmp_path, "w") as dst:
-            copy_keys = [k for k in src.keys() if k != "images"]
+            _skip = {"images", "mat_data", "mat_indices", "mat_indptr", "mat_shape"}
+            copy_keys = [k for k in src.keys() if k not in _skip]
             for key in copy_keys:
                 src.copy(key, dst)
 
@@ -139,15 +147,27 @@ def main() -> None:
                 dtype="f4",
                 chunks=(min(64, n), SIZE, SIZE),
             )
+            ds_img2 = None
+            if MODE2:
+                ds_img2 = dst.create_dataset(
+                    "images2",
+                    shape=(n, SIZE, SIZE),
+                    dtype="f4",
+                    chunks=(min(64, n), SIZE, SIZE),
+                )
 
             for attr_key, attr_val in src.attrs.items():
                 dst.attrs[attr_key] = attr_val
-            dst.attrs["image_mode"] = MODE
-            dst.attrs["image_size"] = SIZE
+            dst.attrs["image_mode"]  = MODE
+            dst.attrs["image_size"]  = SIZE
+            if MODE2:
+                dst.attrs["image_mode2"] = MODE2
 
             for i in range(n):
                 A = reconstruct_matrix(src, i)
                 ds_img[i] = sparsity_image(A, size=SIZE, mode=MODE)
+                if ds_img2 is not None:
+                    ds_img2[i] = sparsity_image(A, size=SIZE, mode=MODE2)
 
                 if (i + 1) % LOG_EVERY == 0 or i + 1 == n:
                     log.info("  Rendered %d / %d", i + 1, n)

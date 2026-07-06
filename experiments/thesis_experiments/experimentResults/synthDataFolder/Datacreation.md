@@ -1,5 +1,4 @@
-1. Generate 20000 syntetic matrices (with the whole matrice stored for easy downsampling later)
-: N_SAMPLES=20006 MAX_ITER=5000 STORE_MATRIX=1 SEED=1234 docker compose run -d datagen
+N_SAMPLES=20006 MAX_ITER=5000 STORE_MATRIX=1 SEED=1234 docker compose run -d datagen
 ```cmd
 Solver win distribution  (20006 samples, ../data/saves/ex1/)
 Rank  Solver                      Wins       %
@@ -49,10 +48,3 @@ Rank  Solver                      Wins       %
   bcgsl+asm                     182     2304     9024    14178    39999
 
 ```
-2. run testrun with run_experiments.sh
-
-3. Add githubdata matrices : CACHE_DIR=../shared/cache/ DATA_DIR=./data/saves/ex1/suite_githubdata/ SOLVER_TIMEOUT=80 MAX_ITER=250000 docker compose run -d githubdata_ingest
-
-4. Add further suitesparse matrices.
-
-5. Run the run_experiment script for each of the 

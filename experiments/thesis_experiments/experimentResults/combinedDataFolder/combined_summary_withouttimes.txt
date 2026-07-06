@@ -1,0 +1,1923 @@
+============================================================
+  Dataset : /shared/Idea/PycharmProjects/IterativeSolverSelectionWithCNNs/experiments/thesis_experiments/data/base/dataset.h5
+  Date    : 2026-06-23 23:07:32
+============================================================
+
+Solver win distribution  (9711 samples, /workspace/data)
+  Synthetic    :   9152  (94.2%)
+  SuiteSparse  :    559  (5.8%)
+Rank  Solver                      Wins       %
+──────────────────────────────────────────────
+  1   cr+ilu                       600    6.2%  ███
+  2   cg+eisenstat                 600    6.2%  ███
+  3   cg+bjacobi                   600    6.2%  ███
+  4   fbcgsr+jacobi                600    6.2%  ███
+  5   gmres+gamg                   600    6.2%  ███
+  6   fgmres+gamg                  600    6.2%  ███
+  7   cg+ilu                       600    6.2%  ███
+  8   cr+jacobi                    600    6.2%  ███
+  9   minres+gamg                  600    6.2%  ███
+  10  fbcgsr+ilu                   600    6.2%  ███
+  11  cr+eisenstat                 600    6.2%  ███
+  12  bcgsl+none                   600    6.2%  ███
+  13  symmlq+icc                   600    6.2%  ███
+  14  bcgsl+asm                    428    4.4%  ██
+  15  dgmres+none                  354    3.6%  █
+  16  cgs+gamg                     336    3.5%  █
+  17  fcg+gamg                     290    3.0%  █
+  18  symmlq+jacobi                253    2.6%  █
+  19  symmlq+sor                   250    2.6%  █
+
+── Matrix sizes (n = number of rows)  overall: min=99  median=8099  mean=15046  max=125000
+
+  Solver                          N    min n    med n   mean n    max n
+  -------------------------  ------  -------  -------  -------  -------
+  fbcgsr+jacobi                 600      130     4265     6511    19960
+  bcgsl+none                    600       99     2209     3173    39304
+  symmlq+icc                    600      900    19683    27708   125000
+  symmlq+jacobi                 253      138     3465     4508    46771
+  dgmres+none                   354      421     2481     5192    52328
+  gmres+gamg                    600      781    22200    22623    83521
+  cr+eisenstat                  600      208     2597     5294   117648
+  symmlq+sor                    250       99     4965     5290    64000
+  fbcgsr+ilu                    600       99     4395     7917    84617
+  minres+gamg                   600      362    58081    57861    89999
+  fcg+gamg                      290     1357    26406    29279    89400
+  cr+jacobi                     600       99     2531     3445    19683
+  cg+ilu                        600       99     6874    11239   125000
+  fgmres+gamg                   600     5928    21170    25816    87616
+  cg+eisenstat                  600       99     5831    14986   125000
+  cg+bjacobi                    600     1138    11342    15349    59318
+  cr+ilu                        600       99     4038     4665    17779
+  cgs+gamg                      336     1041    11024    14676    84681
+  bcgsl+asm                     428      225     7921    10376    42874
+
+Saved → /workspace/viz/solver_wins.png
+
+============================================================
+  Experiment : nocnn
+  Date       : 2026-06-23 23:07:33
+  NO_CNN     : True  (features-only, no CNN branch)
+============================================================
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+nocnn                  58.82   61.54   61.78   58.16
+
+ Container thesis_experiments-evaluate-run-89e9d2f95099 Creating
+ Container thesis_experiments-evaluate-run-89e9d2f95099 Created
+2026-06-23 21:10:21,410 INFO Experiment=nocnn  epoch=256  val_acc_train=0.5862
+
+── Thesis Experiment Results: nocnn ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 58.82%   (paper: 78.54%)
+  Macro Precision: 61.54%   (paper: 63.41%)
+  Macro Recall   : 61.78%   (paper: 62.81%)
+  Macro F1       : 58.16%   (paper: 62.53%)
+
+  Top-2 Accuracy : 79.67%
+  Top-3 Accuracy : 88.54%
+
+  Near-optimal Acc (±5%)  : 72.24%
+  Near-optimal Acc (±10%) : 78.02%
+  Near-optimal Acc (±20%) : 83.08%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   69.6%   75.0%   65.0%
+  bcgsl+none               600     2054   48.7%   50.9%   46.7%
+  symmlq+icc               600     1201   62.7%   56.8%   70.0%
+  symmlq+jacobi            253      923   65.6%   55.6%   80.0%
+  dgmres+none              354      650   67.5%   61.9%   74.3%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   83.3%   83.3%   83.3%
+  symmlq+sor               250      582   78.6%   71.0%   88.0%
+  fbcgsr+ilu               600      562   50.5%   60.5%   43.3%
+  minres+gamg              600      524   87.7%   81.4%   95.0%
+  fcg+gamg                 290      342   51.1%   37.7%   79.3%
+  cr+jacobi                600      310   54.0%   67.5%   45.0%
+  cg+ilu                   600      275   55.2%   64.4%   48.3%
+  fgmres+gamg              600      226   38.7%   54.5%   30.0%
+  cg+eisenstat             600      224   62.0%   58.0%   66.7%
+  cg+bjacobi               600      193   43.6%   53.7%   36.7%
+  cr+ilu                   600       68   72.9%   74.1%   71.7%
+  cgs+gamg                 336       49   40.0%   26.5%   81.8%
+  bcgsl+asm                428       29   52.7%   49.0%   57.1%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : binary_64
+  Date       : 2026-06-23 21:10:23
+  IMAGE_MODE : binary
+  IMAGE_SIZE : 64
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+binary_64              60.17   63.39   63.03   59.28
+
+ Container thesis_experiments-evaluate-run-3f864593bbc0 Creating
+ Container thesis_experiments-evaluate-run-3f864593bbc0 Created
+2026-06-23 21:17:20,471 INFO Experiment=binary_64  epoch=256  val_acc_train=0.6017
+
+── Thesis Experiment Results: binary_64 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 60.17%   (paper: 78.54%)
+  Macro Precision: 63.39%   (paper: 63.41%)
+  Macro Recall   : 63.03%   (paper: 62.81%)
+  Macro F1       : 59.28%   (paper: 62.53%)
+
+  Top-2 Accuracy : 82.46%
+  Top-3 Accuracy : 91.23%
+
+  Near-optimal Acc (±5%)  : 74.20%
+  Near-optimal Acc (±10%) : 80.29%
+  Near-optimal Acc (±20%) : 85.96%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   66.7%   70.4%   63.3%
+  bcgsl+none               600     2054   52.4%   62.8%   45.0%
+  symmlq+icc               600     1201   57.1%   57.6%   56.7%
+  symmlq+jacobi            253      923   62.7%   50.0%   84.0%
+  dgmres+none              354      650   64.1%   58.1%   71.4%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   81.0%   80.3%   81.7%
+  symmlq+sor               250      582   80.0%   73.3%   88.0%
+  fbcgsr+ilu               600      562   54.5%   69.2%   45.0%
+  minres+gamg              600      524   88.5%   81.7%   96.7%
+  fcg+gamg                 290      342   50.0%   36.5%   79.3%
+  cr+jacobi                600      310   46.8%   51.0%   43.3%
+  cg+ilu                   600      275   58.3%   69.8%   50.0%
+  fgmres+gamg              600      226   39.1%   63.0%   28.3%
+  cg+eisenstat             600      224   69.4%   67.2%   71.7%
+  cg+bjacobi               600      193   57.7%   50.0%   68.3%
+  cr+ilu                   600       68   70.6%   71.2%   70.0%
+  cgs+gamg                 336       49   43.0%   29.5%   78.8%
+  bcgsl+asm                428       29   63.5%   62.8%   64.3%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : binary_128
+  Date       : 2026-06-23 21:17:23
+  IMAGE_MODE : binary
+  IMAGE_SIZE : 128
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+binary_128             59.75   62.92   62.69   58.97
+
+ Container thesis_experiments-evaluate-run-305403567993 Creating
+ Container thesis_experiments-evaluate-run-305403567993 Created
+2026-06-23 21:38:52,963 INFO Experiment=binary_128  epoch=256  val_acc_train=0.5975
+
+── Thesis Experiment Results: binary_128 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 59.75%   (paper: 78.54%)
+  Macro Precision: 62.92%   (paper: 63.41%)
+  Macro Recall   : 62.69%   (paper: 62.81%)
+  Macro F1       : 58.97%   (paper: 62.53%)
+
+  Top-2 Accuracy : 82.35%
+  Top-3 Accuracy : 91.33%
+
+  Near-optimal Acc (±5%)  : 74.41%
+  Near-optimal Acc (±10%) : 80.70%
+  Near-optimal Acc (±20%) : 86.17%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   69.6%   75.0%   65.0%
+  bcgsl+none               600     2054   57.7%   68.2%   50.0%
+  symmlq+icc               600     1201   47.1%   57.1%   40.0%
+  symmlq+jacobi            253      923   65.7%   52.4%   88.0%
+  dgmres+none              354      650   64.9%   59.5%   71.4%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   82.4%   83.1%   81.7%
+  symmlq+sor               250      582   77.2%   68.7%   88.0%
+  fbcgsr+ilu               600      562   53.6%   57.7%   50.0%
+  minres+gamg              600      524   88.7%   80.8%   98.3%
+  fcg+gamg                 290      342   45.5%   31.9%   79.3%
+  cr+jacobi                600      310   52.1%   69.4%   41.7%
+  cg+ilu                   600      275   53.1%   68.4%   43.3%
+  fgmres+gamg              600      226   42.6%   58.8%   33.3%
+  cg+eisenstat             600      224   67.7%   64.2%   71.7%
+  cg+bjacobi               600      193   58.5%   49.4%   71.7%
+  cr+ilu                   600       68   61.7%   56.2%   68.3%
+  cgs+gamg                 336       49   43.5%   30.5%   75.8%
+  bcgsl+asm                428       29   68.4%   76.5%   61.9%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : binary_256
+  Date       : 2026-06-23 21:38:58
+  IMAGE_MODE : binary
+  IMAGE_SIZE : 256
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+binary_256             60.89   64.17   63.93   60.17
+
+ Container thesis_experiments-evaluate-run-2736e84f1e11 Creating
+ Container thesis_experiments-evaluate-run-2736e84f1e11 Created
+2026-06-23 22:57:27,159 INFO Experiment=binary_256  epoch=256  val_acc_train=0.6089
+
+── Thesis Experiment Results: binary_256 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 60.89%   (paper: 78.54%)
+  Macro Precision: 64.17%   (paper: 63.41%)
+  Macro Recall   : 63.93%   (paper: 62.81%)
+  Macro F1       : 60.17%   (paper: 62.53%)
+
+  Top-2 Accuracy : 82.15%
+  Top-3 Accuracy : 91.64%
+
+  Near-optimal Acc (±5%)  : 74.92%
+  Near-optimal Acc (±10%) : 81.01%
+  Near-optimal Acc (±20%) : 86.58%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   71.3%   74.5%   68.3%
+  bcgsl+none               600     2054   57.1%   61.5%   53.3%
+  symmlq+icc               600     1201   48.9%   45.1%   53.3%
+  symmlq+jacobi            253      923   57.5%   41.8%   92.0%
+  dgmres+none              354      650   66.7%   62.5%   71.4%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   86.7%   92.5%   81.7%
+  symmlq+sor               250      582   74.6%   64.7%   88.0%
+  fbcgsr+ilu               600      562   55.8%   65.9%   48.3%
+  minres+gamg              600      524   89.9%   84.1%   96.7%
+  fcg+gamg                 290      342   46.7%   32.1%   86.2%
+  cr+jacobi                600      310   60.2%   72.1%   51.7%
+  cg+ilu                   600      275   58.3%   69.8%   50.0%
+  fgmres+gamg              600      226   43.0%   60.6%   33.3%
+  cg+eisenstat             600      224   69.6%   72.7%   66.7%
+  cg+bjacobi               600      193   55.3%   54.0%   56.7%
+  cr+ilu                   600       68   73.0%   76.4%   70.0%
+  cgs+gamg                 336       49   43.1%   30.1%   75.8%
+  bcgsl+asm                428       29   64.9%   71.4%   59.5%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : density_64
+  Date       : 2026-06-23 22:57:47
+  IMAGE_MODE : density
+  IMAGE_SIZE : 64
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+density_64             58.51   62.47   60.63   57.68
+
+ Container thesis_experiments-evaluate-run-663c0a89d1cd Creating
+ Container thesis_experiments-evaluate-run-663c0a89d1cd Created
+2026-06-23 23:05:17,949 INFO Experiment=density_64  epoch=256  val_acc_train=0.5841
+
+── Thesis Experiment Results: density_64 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 58.51%   (paper: 78.54%)
+  Macro Precision: 62.47%   (paper: 63.41%)
+  Macro Recall   : 60.63%   (paper: 62.81%)
+  Macro F1       : 57.68%   (paper: 62.53%)
+
+  Top-2 Accuracy : 80.08%
+  Top-3 Accuracy : 89.89%
+
+  Near-optimal Acc (±5%)  : 73.48%
+  Near-optimal Acc (±10%) : 79.36%
+  Near-optimal Acc (±20%) : 85.76%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   68.4%   70.2%   66.7%
+  bcgsl+none               600     2054   49.0%   59.5%   41.7%
+  symmlq+icc               600     1201   57.8%   52.0%   65.0%
+  symmlq+jacobi            253      923   51.2%   36.8%   84.0%
+  dgmres+none              354      650   60.5%   56.1%   65.7%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   87.5%   94.2%   81.7%
+  symmlq+sor               250      582   74.6%   64.7%   88.0%
+  fbcgsr+ilu               600      562   52.8%   60.9%   46.7%
+  minres+gamg              600      524   82.1%   88.5%   76.7%
+  fcg+gamg                 290      342   31.0%   23.6%   44.8%
+  cr+jacobi                600      310   59.3%   66.7%   53.3%
+  cg+ilu                   600      275   59.0%   68.9%   51.7%
+  fgmres+gamg              600      226   36.8%   59.3%   26.7%
+  cg+eisenstat             600      224   68.2%   62.5%   75.0%
+  cg+bjacobi               600      193   58.8%   59.3%   58.3%
+  cr+ilu                   600       68   72.4%   75.0%   70.0%
+  cgs+gamg                 336       49   39.2%   25.5%   84.8%
+  bcgsl+asm                428       29   66.7%   75.8%   59.5%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : density_128
+  Date       : 2026-06-23 23:05:20
+  IMAGE_MODE : density
+  IMAGE_SIZE : 128
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+density_128            59.55   62.91   62.16   58.48
+
+ Container thesis_experiments-evaluate-run-19261952179f Creating
+ Container thesis_experiments-evaluate-run-19261952179f Created
+2026-06-23 23:27:21,978 INFO Experiment=density_128  epoch=256  val_acc_train=0.5934
+
+── Thesis Experiment Results: density_128 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 59.55%   (paper: 78.54%)
+  Macro Precision: 62.91%   (paper: 63.41%)
+  Macro Recall   : 62.16%   (paper: 62.81%)
+  Macro F1       : 58.48%   (paper: 62.53%)
+
+  Top-2 Accuracy : 81.01%
+  Top-3 Accuracy : 90.40%
+
+  Near-optimal Acc (±5%)  : 74.51%
+  Near-optimal Acc (±10%) : 80.29%
+  Near-optimal Acc (±20%) : 85.35%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   67.2%   66.1%   68.3%
+  bcgsl+none               600     2054   44.2%   60.0%   35.0%
+  symmlq+icc               600     1201   61.3%   54.5%   70.0%
+  symmlq+jacobi            253      923   55.3%   41.2%   84.0%
+  dgmres+none              354      650   62.0%   61.1%   62.9%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   84.5%   87.5%   81.7%
+  symmlq+sor               250      582   74.6%   64.7%   88.0%
+  fbcgsr+ilu               600      562   55.6%   62.5%   50.0%
+  minres+gamg              600      524   89.1%   83.8%   95.0%
+  fcg+gamg                 290      342   49.4%   37.5%   72.4%
+  cr+jacobi                600      310   58.7%   65.3%   53.3%
+  cg+ilu                   600      275   51.0%   65.8%   41.7%
+  fgmres+gamg              600      226   43.0%   60.6%   33.3%
+  cg+eisenstat             600      224   67.2%   59.7%   76.7%
+  cg+bjacobi               600      193   53.2%   59.2%   48.3%
+  cr+ilu                   600       68   66.1%   69.1%   63.3%
+  cgs+gamg                 336       49   39.7%   26.5%   78.8%
+  bcgsl+asm                428       29   68.3%   70.0%   66.7%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : density_256
+  Date       : 2026-06-23 23:27:27
+  IMAGE_MODE : density
+  IMAGE_SIZE : 256
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+density_256            61.82   64.89   64.34   61.15
+
+ Container thesis_experiments-evaluate-run-cfab5bc86898 Creating
+ Container thesis_experiments-evaluate-run-cfab5bc86898 Created
+2026-06-24 00:46:45,006 INFO Experiment=density_256  epoch=256  val_acc_train=0.6192
+
+── Thesis Experiment Results: density_256 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 61.82%   (paper: 78.54%)
+  Macro Precision: 64.89%   (paper: 63.41%)
+  Macro Recall   : 64.34%   (paper: 62.81%)
+  Macro F1       : 61.15%   (paper: 62.53%)
+
+  Top-2 Accuracy : 82.87%
+  Top-3 Accuracy : 92.47%
+
+  Near-optimal Acc (±5%)  : 77.19%
+  Near-optimal Acc (±10%) : 82.77%
+  Near-optimal Acc (±20%) : 87.20%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   70.2%   74.1%   66.7%
+  bcgsl+none               600     2054   56.1%   63.8%   50.0%
+  symmlq+icc               600     1201   62.4%   54.3%   73.3%
+  symmlq+jacobi            253      923   65.6%   53.8%   84.0%
+  dgmres+none              354      650   63.0%   60.5%   65.7%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   86.7%   92.5%   81.7%
+  symmlq+sor               250      582   74.6%   64.7%   88.0%
+  fbcgsr+ilu               600      562   56.9%   63.3%   51.7%
+  minres+gamg              600      524   87.9%   80.6%   96.7%
+  fcg+gamg                 290      342   52.3%   39.0%   79.3%
+  cr+jacobi                600      310   54.1%   53.2%   55.0%
+  cg+ilu                   600      275   57.4%   64.6%   51.7%
+  fgmres+gamg              600      226   46.2%   67.7%   35.0%
+  cg+eisenstat             600      224   65.5%   72.0%   60.0%
+  cg+bjacobi               600      193   58.8%   59.3%   58.3%
+  cr+ilu                   600       68   72.4%   75.0%   70.0%
+  cgs+gamg                 336       49   41.9%   28.1%   81.8%
+  bcgsl+asm                428       29   69.3%   78.8%   61.9%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : log_density_64
+  Date       : 2026-06-24 00:47:04
+  IMAGE_MODE : log_density
+  IMAGE_SIZE : 64
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+log_density_64         62.75   65.77   65.40   61.83
+
+ Container thesis_experiments-evaluate-run-9f52f1fa3543 Creating
+ Container thesis_experiments-evaluate-run-9f52f1fa3543 Created
+2026-06-24 00:54:32,972 INFO Experiment=log_density_64  epoch=256  val_acc_train=0.6285
+
+── Thesis Experiment Results: log_density_64 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 62.75%   (paper: 78.54%)
+  Macro Precision: 65.77%   (paper: 63.41%)
+  Macro Recall   : 65.40%   (paper: 62.81%)
+  Macro F1       : 61.83%   (paper: 62.53%)
+
+  Top-2 Accuracy : 83.28%
+  Top-3 Accuracy : 93.50%
+
+  Near-optimal Acc (±5%)  : 77.71%
+  Near-optimal Acc (±10%) : 83.49%
+  Near-optimal Acc (±20%) : 88.34%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   71.8%   73.7%   70.0%
+  bcgsl+none               600     2054   57.4%   64.6%   51.7%
+  symmlq+icc               600     1201   61.8%   55.3%   70.0%
+  symmlq+jacobi            253      923   63.8%   50.0%   88.0%
+  dgmres+none              354      650   63.9%   62.2%   65.7%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   84.2%   88.9%   80.0%
+  symmlq+sor               250      582   75.9%   66.7%   88.0%
+  fbcgsr+ilu               600      562   55.8%   65.9%   48.3%
+  minres+gamg              600      524   87.9%   80.6%   96.7%
+  fcg+gamg                 290      342   52.3%   39.0%   79.3%
+  cr+jacobi                600      310   55.7%   54.8%   56.7%
+  cg+ilu                   600      275   57.1%   66.7%   50.0%
+  fgmres+gamg              600      226   43.5%   62.5%   33.3%
+  cg+eisenstat             600      224   67.8%   70.9%   65.0%
+  cg+bjacobi               600      193   65.0%   63.5%   66.7%
+  cr+ilu                   600       68   73.7%   77.8%   70.0%
+  cgs+gamg                 336       49   45.5%   31.1%   84.8%
+  bcgsl+asm                428       29   70.9%   75.7%   66.7%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : log_density_128
+  Date       : 2026-06-24 00:54:35
+  IMAGE_MODE : log_density
+  IMAGE_SIZE : 128
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+log_density_128        63.47   66.33   65.89   62.51
+
+ Container thesis_experiments-evaluate-run-d6d54f8ec6b2 Creating
+ Container thesis_experiments-evaluate-run-d6d54f8ec6b2 Created
+2026-06-24 01:16:37,608 INFO Experiment=log_density_128  epoch=256  val_acc_train=0.6336
+
+── Thesis Experiment Results: log_density_128 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 63.47%   (paper: 78.54%)
+  Macro Precision: 66.33%   (paper: 63.41%)
+  Macro Recall   : 65.89%   (paper: 62.81%)
+  Macro F1       : 62.51%   (paper: 62.53%)
+
+  Top-2 Accuracy : 84.21%
+  Top-3 Accuracy : 92.57%
+
+  Near-optimal Acc (±5%)  : 78.84%
+  Near-optimal Acc (±10%) : 84.52%
+  Near-optimal Acc (±20%) : 89.16%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   74.1%   76.8%   71.7%
+  bcgsl+none               600     2054   57.4%   64.6%   51.7%
+  symmlq+icc               600     1201   62.8%   55.8%   71.7%
+  symmlq+jacobi            253      923   62.7%   50.0%   84.0%
+  dgmres+none              354      650   63.9%   62.2%   65.7%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   87.5%   94.2%   81.7%
+  symmlq+sor               250      582   75.9%   66.7%   88.0%
+  fbcgsr+ilu               600      562   56.6%   65.2%   50.0%
+  minres+gamg              600      524   87.9%   80.6%   96.7%
+  fcg+gamg                 290      342   52.3%   39.0%   79.3%
+  cr+jacobi                600      310   54.8%   53.1%   56.7%
+  cg+ilu                   600      275   60.2%   58.7%   61.7%
+  fgmres+gamg              600      226   45.7%   65.6%   35.0%
+  cg+eisenstat             600      224   69.6%   72.7%   66.7%
+  cg+bjacobi               600      193   60.7%   65.4%   56.7%
+  cr+ilu                   600       68   73.5%   75.4%   71.7%
+  cgs+gamg                 336       49   48.7%   34.1%   84.8%
+  bcgsl+asm                428       29   72.7%   80.0%   66.7%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : log_density_256
+  Date       : 2026-06-24 01:16:44
+  IMAGE_MODE : log_density
+  IMAGE_SIZE : 256
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+log_density_256        63.67   66.22   66.11   62.69
+
+ Container thesis_experiments-evaluate-run-6a48c25be082 Creating
+ Container thesis_experiments-evaluate-run-6a48c25be082 Created
+2026-06-24 02:36:08,193 INFO Experiment=log_density_256  epoch=256  val_acc_train=0.6336
+
+── Thesis Experiment Results: log_density_256 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 63.67%   (paper: 78.54%)
+  Macro Precision: 66.22%   (paper: 63.41%)
+  Macro Recall   : 66.11%   (paper: 62.81%)
+  Macro F1       : 62.69%   (paper: 62.53%)
+
+  Top-2 Accuracy : 83.90%
+  Top-3 Accuracy : 93.40%
+
+  Near-optimal Acc (±5%)  : 79.15%
+  Near-optimal Acc (±10%) : 84.73%
+  Near-optimal Acc (±20%) : 89.16%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   71.8%   73.7%   70.0%
+  bcgsl+none               600     2054   56.1%   63.8%   50.0%
+  symmlq+icc               600     1201   62.8%   55.8%   71.7%
+  symmlq+jacobi            253      923   65.7%   52.4%   88.0%
+  dgmres+none              354      650   63.9%   62.2%   65.7%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   86.0%   90.7%   81.7%
+  symmlq+sor               250      582   75.9%   66.7%   88.0%
+  fbcgsr+ilu               600      562   56.1%   63.8%   50.0%
+  minres+gamg              600      524   87.7%   81.4%   95.0%
+  fcg+gamg                 290      342   50.5%   37.1%   79.3%
+  cr+jacobi                600      310   57.7%   68.2%   50.0%
+  cg+ilu                   600      275   60.5%   61.0%   60.0%
+  fgmres+gamg              600      226   47.4%   62.2%   38.3%
+  cg+eisenstat             600      224   66.7%   61.1%   73.3%
+  cg+bjacobi               600      193   63.4%   61.9%   65.0%
+  cr+ilu                   600       68   73.0%   76.4%   70.0%
+  cgs+gamg                 336       49   51.4%   37.5%   81.8%
+  bcgsl+asm                428       29   73.7%   82.4%   66.7%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : magnitude_64
+  Date       : 2026-06-24 02:36:28
+  IMAGE_MODE : magnitude
+  IMAGE_SIZE : 64
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+magnitude_64           64.29   66.42   66.47   63.37
+
+ Container thesis_experiments-evaluate-run-b423c23a5ca5 Creating
+ Container thesis_experiments-evaluate-run-b423c23a5ca5 Created
+2026-06-24 02:44:01,499 INFO Experiment=magnitude_64  epoch=256  val_acc_train=0.6419
+
+── Thesis Experiment Results: magnitude_64 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 64.29%   (paper: 78.54%)
+  Macro Precision: 66.42%   (paper: 63.41%)
+  Macro Recall   : 66.47%   (paper: 62.81%)
+  Macro F1       : 63.37%   (paper: 62.53%)
+
+  Top-2 Accuracy : 85.66%
+  Top-3 Accuracy : 93.50%
+
+  Near-optimal Acc (±5%)  : 79.67%
+  Near-optimal Acc (±10%) : 84.93%
+  Near-optimal Acc (±20%) : 89.47%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   70.1%   71.9%   68.3%
+  bcgsl+none               600     2054   63.2%   66.7%   60.0%
+  symmlq+icc               600     1201   59.5%   59.0%   60.0%
+  symmlq+jacobi            253      923   67.7%   56.8%   84.0%
+  dgmres+none              354      650   63.0%   60.5%   65.7%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   86.2%   95.9%   78.3%
+  symmlq+sor               250      582   77.8%   72.4%   84.0%
+  fbcgsr+ilu               600      562   54.7%   63.0%   48.3%
+  minres+gamg              600      524   88.1%   79.7%   98.3%
+  fcg+gamg                 290      342   52.3%   39.0%   79.3%
+  cr+jacobi                600      310   53.9%   56.4%   51.7%
+  cg+ilu                   600      275   54.4%   65.1%   46.7%
+  fgmres+gamg              600      226   54.0%   67.5%   45.0%
+  cg+eisenstat             600      224   67.7%   64.2%   71.7%
+  cg+bjacobi               600      193   71.8%   62.2%   85.0%
+  cr+ilu                   600       68   71.0%   68.7%   73.3%
+  cgs+gamg                 336       49   52.3%   37.8%   84.8%
+  bcgsl+asm                428       29   75.7%   87.5%   66.7%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : magnitude_128
+  Date       : 2026-06-24 02:44:04
+  IMAGE_MODE : magnitude
+  IMAGE_SIZE : 128
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+magnitude_128          63.98   67.06   66.42   63.10
+
+ Container thesis_experiments-evaluate-run-81d2cd748b60 Creating
+ Container thesis_experiments-evaluate-run-81d2cd748b60 Created
+2026-06-24 03:06:13,948 INFO Experiment=magnitude_128  epoch=256  val_acc_train=0.6409
+
+── Thesis Experiment Results: magnitude_128 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 63.98%   (paper: 78.54%)
+  Macro Precision: 67.06%   (paper: 63.41%)
+  Macro Recall   : 66.42%   (paper: 62.81%)
+  Macro F1       : 63.10%   (paper: 62.53%)
+
+  Top-2 Accuracy : 86.38%
+  Top-3 Accuracy : 93.81%
+
+  Near-optimal Acc (±5%)  : 79.46%
+  Near-optimal Acc (±10%) : 85.04%
+  Near-optimal Acc (±20%) : 89.68%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   70.1%   71.9%   68.3%
+  bcgsl+none               600     2054   67.8%   70.9%   65.0%
+  symmlq+icc               600     1201   59.1%   61.8%   56.7%
+  symmlq+jacobi            253      923   74.2%   62.2%   92.0%
+  dgmres+none              354      650   61.1%   59.5%   62.9%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   86.2%   95.9%   78.3%
+  symmlq+sor               250      582   77.8%   72.4%   84.0%
+  fbcgsr+ilu               600      562   55.4%   68.3%   46.7%
+  minres+gamg              600      524   87.9%   80.6%   96.7%
+  fcg+gamg                 290      342   52.3%   39.0%   79.3%
+  cr+jacobi                600      310   63.0%   70.8%   56.7%
+  cg+ilu                   600      275   46.4%   50.0%   43.3%
+  fgmres+gamg              600      226   46.3%   62.9%   36.7%
+  cg+eisenstat             600      224   69.2%   64.3%   75.0%
+  cg+bjacobi               600      193   72.1%   60.9%   88.3%
+  cr+ilu                   600       68   65.6%   63.1%   68.3%
+  cgs+gamg                 336       49   50.4%   35.4%   87.9%
+  bcgsl+asm                428       29   73.0%   84.4%   64.3%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : magnitude_256
+  Date       : 2026-06-24 03:06:20
+  IMAGE_MODE : magnitude
+  IMAGE_SIZE : 256
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+magnitude_256          63.36   66.23   65.73   62.78
+
+ Container thesis_experiments-evaluate-run-ab8d93dadbc2 Creating
+ Container thesis_experiments-evaluate-run-ab8d93dadbc2 Created
+2026-06-24 04:26:05,261 INFO Experiment=magnitude_256  epoch=256  val_acc_train=0.6347
+
+── Thesis Experiment Results: magnitude_256 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 63.36%   (paper: 78.54%)
+  Macro Precision: 66.23%   (paper: 63.41%)
+  Macro Recall   : 65.73%   (paper: 62.81%)
+  Macro F1       : 62.78%   (paper: 62.53%)
+
+  Top-2 Accuracy : 86.27%
+  Top-3 Accuracy : 93.81%
+
+  Near-optimal Acc (±5%)  : 79.15%
+  Near-optimal Acc (±10%) : 85.35%
+  Near-optimal Acc (±20%) : 90.20%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   70.7%   73.2%   68.3%
+  bcgsl+none               600     2054   63.9%   62.9%   65.0%
+  symmlq+icc               600     1201   50.0%   48.4%   51.7%
+  symmlq+jacobi            253      923   75.9%   66.7%   88.0%
+  dgmres+none              354      650   63.0%   60.5%   65.7%
+  gmres+gamg               600      640   20.9%  100.0%   11.7%
+  cr+eisenstat             600      598   86.7%   92.5%   81.7%
+  symmlq+sor               250      582   73.7%   65.6%   84.0%
+  fbcgsr+ilu               600      562   50.5%   60.5%   43.3%
+  minres+gamg              600      524   88.9%   84.8%   93.3%
+  fcg+gamg                 290      342   45.9%   31.2%   86.2%
+  cr+jacobi                600      310   66.1%   73.5%   60.0%
+  cg+ilu                   600      275   46.4%   50.0%   43.3%
+  fgmres+gamg              600      226   50.5%   54.9%   46.7%
+  cg+eisenstat             600      224   71.3%   74.5%   68.3%
+  cg+bjacobi               600      193   71.5%   63.6%   81.7%
+  cr+ilu                   600       68   70.6%   71.2%   70.0%
+  cgs+gamg                 336       49   54.3%   42.4%   75.8%
+  bcgsl+asm                428       29   72.0%   81.8%   64.3%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : symmetry_64
+  Date       : 2026-06-24 04:26:25
+  IMAGE_MODE : symmetry
+  IMAGE_SIZE : 64
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+============================================================
+  Dataset : /shared/Idea/PycharmProjects/IterativeSolverSelectionWithCNNs/experiments/thesis_experiments/data/base/dataset.h5
+  Date    : 2026-06-24 08:20:45
+============================================================
+
+Solver win distribution  (9711 samples, /workspace/data)
+  Synthetic    :   9152  (94.2%)
+  SuiteSparse  :    559  (5.8%)
+Rank  Solver                      Wins       %
+──────────────────────────────────────────────
+  1   cr+ilu                       600    6.2%  ███
+  2   cg+eisenstat                 600    6.2%  ███
+  3   cg+bjacobi                   600    6.2%  ███
+  4   fbcgsr+jacobi                600    6.2%  ███
+  5   gmres+gamg                   600    6.2%  ███
+  6   fgmres+gamg                  600    6.2%  ███
+  7   cg+ilu                       600    6.2%  ███
+  8   cr+jacobi                    600    6.2%  ███
+  9   minres+gamg                  600    6.2%  ███
+  10  fbcgsr+ilu                   600    6.2%  ███
+  11  cr+eisenstat                 600    6.2%  ███
+  12  bcgsl+none                   600    6.2%  ███
+  13  symmlq+icc                   600    6.2%  ███
+  14  bcgsl+asm                    428    4.4%  ██
+  15  dgmres+none                  354    3.6%  █
+  16  cgs+gamg                     336    3.5%  █
+  17  fcg+gamg                     290    3.0%  █
+  18  symmlq+jacobi                253    2.6%  █
+  19  symmlq+sor                   250    2.6%  █
+
+── Matrix sizes (n = number of rows)  overall: min=99  median=8099  mean=15046  max=125000
+
+  Solver                          N    min n    med n   mean n    max n
+  -------------------------  ------  -------  -------  -------  -------
+  fbcgsr+jacobi                 600      130     4265     6511    19960
+  bcgsl+none                    600       99     2209     3173    39304
+  symmlq+icc                    600      900    19683    27708   125000
+  symmlq+jacobi                 253      138     3465     4508    46771
+  dgmres+none                   354      421     2481     5192    52328
+  gmres+gamg                    600      781    22200    22623    83521
+  cr+eisenstat                  600      208     2597     5294   117648
+  symmlq+sor                    250       99     4965     5290    64000
+  fbcgsr+ilu                    600       99     4395     7917    84617
+  minres+gamg                   600      362    58081    57861    89999
+  fcg+gamg                      290     1357    26406    29279    89400
+  cr+jacobi                     600       99     2531     3445    19683
+  cg+ilu                        600       99     6874    11239   125000
+  fgmres+gamg                   600     5928    21170    25816    87616
+  cg+eisenstat                  600       99     5831    14986   125000
+  cg+bjacobi                    600     1138    11342    15349    59318
+  cr+ilu                        600       99     4038     4665    17779
+  cgs+gamg                      336     1041    11024    14676    84681
+  bcgsl+asm                     428      225     7921    10376    42874
+
+Saved → /workspace/viz/solver_wins.png
+
+============================================================
+  Baselines : majority class, 1-NN, 5-NN
+  Date      : 2026-06-24 08:20:46
+============================================================
+#1 [internal] load local bake definitions
+#1 reading from stdin 628B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 949B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime
+#3 DONE 1.1s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime@sha256:7db0e1bf4b1ac274ea09cf6358ab516f8a5c7d3d0e02311bed445f7e236a5d80
+#5 resolve docker.io/pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime@sha256:7db0e1bf4b1ac274ea09cf6358ab516f8a5c7d3d0e02311bed445f7e236a5d80 done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 188B done
+#6 DONE 0.0s
+
+#7 [2/7] WORKDIR /workspace
+#7 CACHED
+
+#8 [3/7] RUN apt-get update && apt-get install -y     git curl vim     gcc g++ gfortran make     libopenblas-dev liblapack-dev     pkg-config     && rm -rf /var/lib/apt/lists/*
+#8 CACHED
+
+#9 [4/7] COPY requirements.txt .
+#9 DONE 0.0s
+
+#10 [5/7] RUN pip install --no-cache-dir -r requirements.txt
+#10 0.489 Collecting scipy>=1.11 (from -r requirements.txt (line 1))
+#10 0.530   Downloading scipy-1.17.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+#10 0.574 Collecting h5py>=3.9 (from -r requirements.txt (line 2))
+#10 0.584   Downloading h5py-3.16.0-cp311-cp311-manylinux_2_28_x86_64.whl.metadata (3.0 kB)
+#10 0.600 Collecting tensorboard>=2.14 (from -r requirements.txt (line 3))
+#10 0.608   Downloading tensorboard-2.20.0-py3-none-any.whl.metadata (1.8 kB)
+#10 0.684 Collecting matplotlib>=3.8 (from -r requirements.txt (line 4))
+#10 0.693   Downloading matplotlib-3.11.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (80 kB)
+#10 0.884 Collecting ssgetpy>=1.0rc0 (from -r requirements.txt (line 5))
+#10 0.991   Downloading ssgetpy-1.0rc2-py3-none-any.whl.metadata (4.1 kB)
+#10 1.045 Collecting scikit-learn>=1.3 (from -r requirements.txt (line 6))
+#10 1.054   Downloading scikit_learn-1.9.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (11 kB)
+#10 1.060 Requirement already satisfied: numpy<2.7,>=1.26.4 in /opt/conda/lib/python3.11/site-packages (from scipy>=1.11->-r requirements.txt (line 1)) (2.2.5)
+#10 1.073 Collecting absl-py>=0.4 (from tensorboard>=2.14->-r requirements.txt (line 3))
+#10 1.083   Downloading absl_py-2.4.0-py3-none-any.whl.metadata (3.3 kB)
+#10 1.388 Collecting grpcio>=1.48.2 (from tensorboard>=2.14->-r requirements.txt (line 3))
+#10 1.400   Downloading grpcio-1.81.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.7 kB)
+#10 1.417 Collecting markdown>=2.6.8 (from tensorboard>=2.14->-r requirements.txt (line 3))
+#10 1.425   Downloading markdown-3.10.2-py3-none-any.whl.metadata (5.1 kB)
+#10 1.427 Requirement already satisfied: packaging in /opt/conda/lib/python3.11/site-packages (from tensorboard>=2.14->-r requirements.txt (line 3)) (24.2)
+#10 1.427 Requirement already satisfied: pillow in /opt/conda/lib/python3.11/site-packages (from tensorboard>=2.14->-r requirements.txt (line 3)) (11.0.0)
+#10 1.534 Collecting protobuf!=4.24.0,>=3.19.6 (from tensorboard>=2.14->-r requirements.txt (line 3))
+#10 1.542   Downloading protobuf-7.35.1-cp310-abi3-manylinux2014_x86_64.whl.metadata (595 bytes)
+#10 1.543 Requirement already satisfied: setuptools>=41.0.0 in /opt/conda/lib/python3.11/site-packages (from tensorboard>=2.14->-r requirements.txt (line 3)) (75.8.2)
+#10 1.556 Collecting tensorboard-data-server<0.8.0,>=0.7.0 (from tensorboard>=2.14->-r requirements.txt (line 3))
+#10 1.565   Downloading tensorboard_data_server-0.7.2-py3-none-manylinux_2_31_x86_64.whl.metadata (1.1 kB)
+#10 1.583 Collecting werkzeug>=1.0.1 (from tensorboard>=2.14->-r requirements.txt (line 3))
+#10 1.592   Downloading werkzeug-3.1.8-py3-none-any.whl.metadata (4.0 kB)
+#10 1.632 Collecting contourpy>=1.0.1 (from matplotlib>=3.8->-r requirements.txt (line 4))
+#10 1.642   Downloading contourpy-1.3.3-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (5.5 kB)
+#10 1.653 Collecting cycler>=0.10 (from matplotlib>=3.8->-r requirements.txt (line 4))
+#10 1.663   Downloading cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+#10 1.758 Collecting fonttools>=4.22.0 (from matplotlib>=3.8->-r requirements.txt (line 4))
+#10 1.783   Downloading fonttools-4.63.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (118 kB)
+#10 1.866 Collecting kiwisolver>=1.3.1 (from matplotlib>=3.8->-r requirements.txt (line 4))
+#10 1.875   Downloading kiwisolver-1.5.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (5.1 kB)
+#10 1.893 Collecting pyparsing>=3 (from matplotlib>=3.8->-r requirements.txt (line 4))
+#10 1.902   Downloading pyparsing-3.3.2-py3-none-any.whl.metadata (5.8 kB)
+#10 1.914 Collecting python-dateutil>=2.7 (from matplotlib>=3.8->-r requirements.txt (line 4))
+#10 1.923   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+#10 1.924 Requirement already satisfied: requests>=2.22 in /opt/conda/lib/python3.11/site-packages (from ssgetpy>=1.0rc0->-r requirements.txt (line 5)) (2.32.3)
+#10 1.925 Requirement already satisfied: tqdm>=4.41 in /opt/conda/lib/python3.11/site-packages (from ssgetpy>=1.0rc0->-r requirements.txt (line 5)) (4.67.1)
+#10 1.942 Collecting joblib>=1.4.0 (from scikit-learn>=1.3->-r requirements.txt (line 6))
+#10 1.951   Downloading joblib-1.5.3-py3-none-any.whl.metadata (5.5 kB)
+#10 1.999 Collecting narwhals>=2.0.1 (from scikit-learn>=1.3->-r requirements.txt (line 6))
+#10 2.008   Downloading narwhals-2.22.1-py3-none-any.whl.metadata (15 kB)
+#10 2.022 Collecting threadpoolctl>=3.5.0 (from scikit-learn>=1.3->-r requirements.txt (line 6))
+#10 2.030   Downloading threadpoolctl-3.6.0-py3-none-any.whl.metadata (13 kB)
+#10 2.033 Requirement already satisfied: typing-extensions~=4.12 in /opt/conda/lib/python3.11/site-packages (from grpcio>=1.48.2->tensorboard>=2.14->-r requirements.txt (line 3)) (4.13.2)
+#10 2.042 Requirement already satisfied: six>=1.5 in /opt/conda/lib/python3.11/site-packages (from python-dateutil>=2.7->matplotlib>=3.8->-r requirements.txt (line 4)) (1.17.0)
+#10 2.043 Requirement already satisfied: charset_normalizer<4,>=2 in /opt/conda/lib/python3.11/site-packages (from requests>=2.22->ssgetpy>=1.0rc0->-r requirements.txt (line 5)) (3.4.1)
+#10 2.044 Requirement already satisfied: idna<4,>=2.5 in /opt/conda/lib/python3.11/site-packages (from requests>=2.22->ssgetpy>=1.0rc0->-r requirements.txt (line 5)) (3.10)
+#10 2.044 Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/conda/lib/python3.11/site-packages (from requests>=2.22->ssgetpy>=1.0rc0->-r requirements.txt (line 5)) (2.3.0)
+#10 2.044 Requirement already satisfied: certifi>=2017.4.17 in /opt/conda/lib/python3.11/site-packages (from requests>=2.22->ssgetpy>=1.0rc0->-r requirements.txt (line 5)) (2025.1.31)
+#10 2.049 Requirement already satisfied: markupsafe>=2.1.1 in /opt/conda/lib/python3.11/site-packages (from werkzeug>=1.0.1->tensorboard>=2.14->-r requirements.txt (line 3)) (3.0.2)
+#10 2.065 Downloading scipy-1.17.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (35.3 MB)
+#10 5.170    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 35.3/35.3 MB 11.4 MB/s eta 0:00:00
+#10 5.182 Downloading h5py-3.16.0-cp311-cp311-manylinux_2_28_x86_64.whl (5.0 MB)
+#10 5.633    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.0/5.0 MB 11.1 MB/s eta 0:00:00
+#10 5.643 Downloading tensorboard-2.20.0-py3-none-any.whl (5.5 MB)
+#10 6.111    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 11.8 MB/s eta 0:00:00
+#10 6.125 Downloading matplotlib-3.11.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (10.0 MB)
+#10 6.993    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.0/10.0 MB 11.5 MB/s eta 0:00:00
+#10 7.097 Downloading ssgetpy-1.0rc2-py3-none-any.whl (13 kB)
+#10 7.108 Downloading scikit_learn-1.9.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (9.3 MB)
+#10 8.001    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9.3/9.3 MB 10.4 MB/s eta 0:00:00
+#10 8.019 Downloading absl_py-2.4.0-py3-none-any.whl (135 kB)
+#10 8.031 Downloading contourpy-1.3.3-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (355 kB)
+#10 8.081 Downloading cycler-0.12.1-py3-none-any.whl (8.3 kB)
+#10 8.091 Downloading fonttools-4.63.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.1 MB)
+#10 8.540    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.1/5.1 MB 11.7 MB/s eta 0:00:00
+#10 8.551 Downloading grpcio-1.81.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (6.8 MB)
+#10 9.139    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.8/6.8 MB 11.7 MB/s eta 0:00:00
+#10 9.149 Downloading joblib-1.5.3-py3-none-any.whl (309 kB)
+#10 9.187 Downloading kiwisolver-1.5.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (1.4 MB)
+#10 9.310    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.4/1.4 MB 11.7 MB/s eta 0:00:00
+#10 9.319 Downloading markdown-3.10.2-py3-none-any.whl (108 kB)
+#10 9.342 Downloading narwhals-2.22.1-py3-none-any.whl (454 kB)
+#10 9.402 Downloading protobuf-7.35.1-cp310-abi3-manylinux2014_x86_64.whl (327 kB)
+#10 9.437 Downloading pyparsing-3.3.2-py3-none-any.whl (122 kB)
+#10 9.458 Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+#10 9.493 Downloading tensorboard_data_server-0.7.2-py3-none-manylinux_2_31_x86_64.whl (6.6 MB)
+#10 10.03    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.6/6.6 MB 12.2 MB/s eta 0:00:00
+#10 10.04 Downloading threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
+#10 10.06 Downloading werkzeug-3.1.8-py3-none-any.whl (226 kB)
+#10 10.23 Installing collected packages: werkzeug, threadpoolctl, tensorboard-data-server, scipy, python-dateutil, pyparsing, protobuf, narwhals, markdown, kiwisolver, joblib, h5py, grpcio, fonttools, cycler, contourpy, absl-py, tensorboard, ssgetpy, scikit-learn, matplotlib
+#10 15.23 Successfully installed absl-py-2.4.0 contourpy-1.3.3 cycler-0.12.1 fonttools-4.63.0 grpcio-1.81.1 h5py-3.16.0 joblib-1.5.3 kiwisolver-1.5.0 markdown-3.10.2 matplotlib-3.11.0 narwhals-2.22.1 protobuf-7.35.1 pyparsing-3.3.2 python-dateutil-2.9.0.post0 scikit-learn-1.9.0 scipy-1.17.1 ssgetpy-1.0rc2 tensorboard-2.20.0 tensorboard-data-server-0.7.2 threadpoolctl-3.6.0 werkzeug-3.1.8
+#10 15.23 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#10 DONE 15.7s
+
+#11 [6/7] RUN pip install --no-cache-dir "petsc>=3.20" &&     pip install --no-cache-dir "cython>=3.0.0" &&     pip install --no-cache-dir --no-build-isolation "petsc4py>=3.20"
+#11 0.460 Collecting petsc>=3.20
+#11 0.601   Downloading petsc-3.25.2.tar.gz (16.7 MB)
+#11 2.625      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.7/16.7 MB 8.2 MB/s eta 0:00:00
+#11 3.688   Installing build dependencies: started
+#11 4.754   Installing build dependencies: finished with status 'done'
+#11 4.755   Getting requirements to build wheel: started
+#11 4.838   Getting requirements to build wheel: finished with status 'done'
+#11 4.839   Preparing metadata (pyproject.toml): started
+#11 4.918   Preparing metadata (pyproject.toml): finished with status 'done'
+#11 4.919 Building wheels for collected packages: petsc
+#11 4.919   Building wheel for petsc (pyproject.toml): started
+#11 71.93   Building wheel for petsc (pyproject.toml): still running...
+#11 77.83   Building wheel for petsc (pyproject.toml): finished with status 'done'
+#11 77.85   Created wheel for petsc: filename=petsc-3.25.2-py3-none-linux_x86_64.whl size=44824153 sha256=ad48bc33c1b8aa36977b0b371f24e19724216502f1eba6042850408b82be19e9
+#11 77.85   Stored in directory: /tmp/pip-ephem-wheel-cache-trkf8o64/wheels/3c/69/03/5dea0321f95c3c4f928f1299919c60620f9b479178fbad19c8
+#11 77.86 Successfully built petsc
+#11 77.91 Installing collected packages: petsc
+#11 78.28 Successfully installed petsc-3.25.2
+#11 78.28 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#11 78.95 Collecting cython>=3.0.0
+#11 79.00   Downloading cython-3.2.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (7.1 kB)
+#11 79.01 Downloading cython-3.2.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.4 MB)
+#11 79.26    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.4/3.4 MB 13.6 MB/s eta 0:00:00
+#11 79.32 Installing collected packages: cython
+#11 79.66 Successfully installed cython-3.2.5
+#11 79.66 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#11 80.09 Collecting petsc4py>=3.20
+#11 80.24   Downloading petsc4py-3.25.2.tar.gz (487 kB)
+#11 80.32   Preparing metadata (pyproject.toml): started
+#11 80.52   Preparing metadata (pyproject.toml): finished with status 'done'
+#11 80.52 Requirement already satisfied: numpy>=1.19 in /opt/conda/lib/python3.11/site-packages (from petsc4py>=3.20) (2.2.5)
+#11 80.52 Requirement already satisfied: petsc<3.26,>=3.25 in /opt/conda/lib/python3.11/site-packages (from petsc4py>=3.20) (3.25.2)
+#11 80.52 Building wheels for collected packages: petsc4py
+#11 80.52   Building wheel for petsc4py (pyproject.toml): started
+#11 185.5   Building wheel for petsc4py (pyproject.toml): still running...
+#11 202.3   Building wheel for petsc4py (pyproject.toml): finished with status 'done'
+#11 202.3   Created wheel for petsc4py: filename=petsc4py-3.25.2-cp311-cp311-linux_x86_64.whl size=10223768 sha256=2653d7df8ac831493cb0160b7249158294dcef4cf51da902a0b8d57f962927df
+#11 202.3   Stored in directory: /tmp/pip-ephem-wheel-cache-h29bxxoh/wheels/4b/38/13/886a73549c58dfdaba9c12c50bdf1b4d1aa495dd04e232eaf4
+#11 202.3 Successfully built petsc4py
+#11 202.4 Installing collected packages: petsc4py
+#11 202.5 Successfully installed petsc4py-3.25.2
+#11 202.5 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#11 DONE 202.8s
+
+#12 [7/7] RUN mkdir -p /workspace/checkpoints /workspace/data /workspace/logs
+#12 DONE 0.2s
+
+#13 exporting to image
+#13 exporting layers
+#13 exporting layers 7.2s done
+#13 exporting manifest sha256:cf2ce287098aa9c51f0f64914323af8118b8aa065cbbdea888c63eafcd7889f2 0.0s done
+#13 exporting config sha256:eda3696edfb0f4a1fc1941f1e931238455fe4a810abae8be43292ce914374389 0.0s done
+#13 exporting attestation manifest sha256:b8ba289d97b990d490acae7e3d721d1d9eeab3e9c8b6ae9f74396cc6baf8c5f7 0.0s done
+#13 exporting manifest list sha256:2b4d9803b6dab1345e8f3dc143c06914b4c280c04e395061e1159ebb06384813 0.0s done
+#13 naming to docker.io/library/thesis_experiments-baselines:latest
+#13 naming to docker.io/library/thesis_experiments-baselines:latest done
+#13 unpacking to docker.io/library/thesis_experiments-baselines:latest
+#13 unpacking to docker.io/library/thesis_experiments-baselines:latest 2.3s done
+#13 DONE 9.7s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+============================================================
+  Non-learning Baselines
+  Dataset : /workspace/data/dataset.h5
+  Train   : 8742   Val: 969
+============================================================
+
+── Majority Class  (always predicts: fbcgsr+jacobi) ──
+  Accuracy (Acc)  :   6.19%
+  Macro Precision :   0.33%
+  Macro Recall    :   5.26%
+  Macro F1        :   0.61%
+
+── 1-NN  (Euclidean distance, standardised features) ──
+  Accuracy (Acc)  :  60.06%
+  Macro Precision :  58.94%
+  Macro Recall    :  58.56%
+  Macro F1        :  57.97%
+
+── 5-NN  (Euclidean distance, standardised features) ──
+  Accuracy (Acc)  :  62.95%
+  Macro Precision :  62.46%
+  Macro Recall    :  61.85%
+  Macro F1        :  61.12%
+
+── 5-NN per-class breakdown ─────────────────────────────────
+               precision    recall  f1-score   support
+
+fbcgsr+jacobi      0.698     0.733     0.715        60
+   bcgsl+none      0.683     0.683     0.683        60
+   symmlq+icc      0.480     0.800     0.600        60
+symmlq+jacobi      0.833     0.800     0.816        25
+  dgmres+none      0.575     0.657     0.613        35
+   gmres+gamg      0.429     0.550     0.482        60
+ cr+eisenstat      0.716     0.800     0.756        60
+   symmlq+sor      0.724     0.840     0.778        25
+   fbcgsr+ilu      0.694     0.567     0.624        60
+  minres+gamg      0.803     0.950     0.870        60
+     fcg+gamg      0.333     0.103     0.158        29
+    cr+jacobi      0.692     0.750     0.720        60
+       cg+ilu      0.542     0.533     0.538        60
+  fgmres+gamg      0.508     0.500     0.504        60
+ cg+eisenstat      0.613     0.317     0.418        60
+   cg+bjacobi      0.700     0.583     0.636        60
+       cr+ilu      0.768     0.717     0.741        60
+     cgs+gamg      0.360     0.273     0.310        33
+    bcgsl+asm      0.714     0.595     0.649        42
+
+     accuracy                          0.630       969
+    macro avg      0.625     0.619     0.611       969
+ weighted avg      0.630     0.630     0.620       969
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+majority                6.19    0.33    5.26    0.61
+1-nn                   60.06   58.94   58.56   57.97
+5-nn                   62.95   62.46   61.85   61.12
+
+
+============================================================
+  Experiment : nocnn
+  Date       : 2026-06-24 08:24:38
+  NO_CNN     : True  (features-only, no CNN branch)
+============================================================
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+nocnn                  58.82   61.54   61.78   58.16
+
+ Container thesis_experiments-evaluate-run-6220d7ebf55d Creating
+ Container thesis_experiments-evaluate-run-6220d7ebf55d Created
+2026-06-24 06:24:44,595 INFO Experiment=nocnn  epoch=256  val_acc_train=0.5862
+
+── Thesis Experiment Results: nocnn ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 58.82%   (paper: 78.54%)
+  Macro Precision: 61.54%   (paper: 63.41%)
+  Macro Recall   : 61.78%   (paper: 62.81%)
+  Macro F1       : 58.16%   (paper: 62.53%)
+
+  Top-2 Accuracy : 79.67%
+  Top-3 Accuracy : 88.54%
+
+  Near-optimal Acc (±5%)  : 72.24%
+  Near-optimal Acc (±10%) : 78.02%
+  Near-optimal Acc (±20%) : 83.08%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   69.6%   75.0%   65.0%
+  bcgsl+none               600     2054   48.7%   50.9%   46.7%
+  symmlq+icc               600     1201   62.7%   56.8%   70.0%
+  symmlq+jacobi            253      923   65.6%   55.6%   80.0%
+  dgmres+none              354      650   67.5%   61.9%   74.3%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   83.3%   83.3%   83.3%
+  symmlq+sor               250      582   78.6%   71.0%   88.0%
+  fbcgsr+ilu               600      562   50.5%   60.5%   43.3%
+  minres+gamg              600      524   87.7%   81.4%   95.0%
+  fcg+gamg                 290      342   51.1%   37.7%   79.3%
+  cr+jacobi                600      310   54.0%   67.5%   45.0%
+  cg+ilu                   600      275   55.2%   64.4%   48.3%
+  fgmres+gamg              600      226   38.7%   54.5%   30.0%
+  cg+eisenstat             600      224   62.0%   58.0%   66.7%
+  cg+bjacobi               600      193   43.6%   53.7%   36.7%
+  cr+ilu                   600       68   72.9%   74.1%   71.7%
+  cgs+gamg                 336       49   40.0%   26.5%   81.8%
+  bcgsl+asm                428       29   52.7%   49.0%   57.1%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : symmetry_64
+  Date       : 2026-06-24 06:24:46
+  IMAGE_MODE : symmetry
+  IMAGE_SIZE : 64
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+
+
+experiment           Acc%    MP%     MR%     F1%
+----------------------------------------------------
+symmetry_64            62.54   64.00   64.73   61.46
+
+ Container thesis_experiments-evaluate-run-8d3d54b8e041 Creating
+ Container thesis_experiments-evaluate-run-8d3d54b8e041 Created
+2026-06-24 06:31:40,891 INFO Experiment=symmetry_64  epoch=256  val_acc_train=0.6254
+
+── Thesis Experiment Results: symmetry_64 ──────────────────────────
+  Checkpoint   : epoch 256
+  Val samples  : 969  (of 9711 total)
+  Classes      : 19
+
+  Accuracy (Acc) : 62.54%   (paper: 78.54%)
+  Macro Precision: 64.00%   (paper: 63.41%)
+  Macro Recall   : 64.73%   (paper: 62.81%)
+  Macro F1       : 61.46%   (paper: 62.53%)
+
+  Top-2 Accuracy : 85.35%
+  Top-3 Accuracy : 93.81%
+
+  Near-optimal Acc (±5%)  : 77.92%
+  Near-optimal Acc (±10%) : 84.11%
+  Near-optimal Acc (±20%) : 89.16%
+
+  Solver                 Our N  Paper N      F1    Prec     Rec
+  --------------------  -------  -------  ------  ------  ------
+  fbcgsr+jacobi            600     2173   66.7%   68.4%   65.0%
+  bcgsl+none               600     2054   58.1%   59.6%   56.7%
+  symmlq+icc               600     1201   63.4%   61.9%   65.0%
+  symmlq+jacobi            253      923   66.7%   57.1%   80.0%
+  dgmres+none              354      650   60.3%   57.9%   62.9%
+  gmres+gamg               600      640   20.6%   87.5%   11.7%
+  cr+eisenstat             600      598   81.7%   81.7%   81.7%
+  symmlq+sor               250      582   81.5%   75.9%   88.0%
+  fbcgsr+ilu               600      562   50.0%   62.5%   41.7%
+  minres+gamg              600      524   87.7%   81.4%   95.0%
+  fcg+gamg                 290      342   51.1%   37.7%   79.3%
+  cr+jacobi                600      310   45.5%   50.0%   41.7%
+  cg+ilu                   600      275   57.7%   68.2%   50.0%
+  fgmres+gamg              600      226   41.9%   48.9%   36.7%
+  cg+eisenstat             600      224   68.3%   65.2%   71.7%
+  cg+bjacobi               600      193   72.1%   60.9%   88.3%
+  cr+ilu                   600       68   75.9%   78.6%   73.3%
+  cgs+gamg                 336       49   52.9%   39.1%   81.8%
+  bcgsl+asm                428       29   65.8%   73.5%   59.5%
+─────────────────────────────────────────────────────────────────
+============================================================
+  Experiment metadata
+  Experiment : symmetry_128
+  Date       : 2026-06-24 06:31:44
+  IMAGE_MODE : symmetry
+  IMAGE_SIZE : 128
+  NO_CNN     : False
+============================================================
+
+Solver pairs (19):
+   0  fbcgsr+jacobi
+   1  bcgsl+none
+   2  symmlq+icc
+   3  symmlq+jacobi
+   4  dgmres+none
+   5  gmres+gamg
+   6  cr+eisenstat
+   7  symmlq+sor
+   8  fbcgsr+ilu
+   9  minres+gamg
+  10  fcg+gamg
+  11  cr+jacobi
+  12  cg+ilu
+  13  fgmres+gamg
+  14  cg+eisenstat
+  15  cg+bjacobi
+  16  cr+ilu
+  17  cgs+gamg
+  18  bcgsl+asm
+
+Extracted features (14):
+   0  log(1+n)
+   1  log(1+nnz)
+   2  nnz/n²  (density)
+   3  ‖A−Aᵀ‖_F/‖A‖_F  (asymmetry)
+   4  mean(|diag|/Σ|row|)  (diag dominance)
+   5  ‖A‖_F/n  (norm/size)
+   6  tr(A)/n  (trace/size)
+   7  max|a_ij|/mean|a_ij|  (rel max entry)
+   8  log(1+spectral_radius)
+   9  log(1+cond_diag)  (diag cond proxy)
+  10  bandwidth/n  (norm bandwidth)
+  11  diag_nnz_fraction
+  12  row_norm_cv  (row norm variation)
+  13  offdiag_frob_fraction  (‖A−D‖_F/‖A‖_F)
+
+============================================================
+  Results
+============================================================
+

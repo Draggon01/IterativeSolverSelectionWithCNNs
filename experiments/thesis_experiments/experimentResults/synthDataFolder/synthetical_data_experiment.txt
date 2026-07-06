@@ -1147,8 +1147,8 @@ experiment           Acc%    MP%     MR%     F1%
 nocnn                      ?       ?       ?       ?
 
 ── nocnn ──
- Container thesis_experiments-evaluate-run-7145483f4f5b Creating 
- Container thesis_experiments-evaluate-run-7145483f4f5b Created 
+ Container thesis_experiments-evaluate-run-7145483f4f5b Creating
+ Container thesis_experiments-evaluate-run-7145483f4f5b Created
 Traceback (most recent call last):
   File "/workspace/evaluate.py", line 175, in <module>
     main()
@@ -1160,7 +1160,7 @@ Traceback (most recent call last):
   File "/opt/conda/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2593, in load_state_dict
     raise RuntimeError(
 RuntimeError: Error(s) in loading state_dict for SolverSelectorNet:
-	Missing key(s) in state_dict: "cnn.0.weight", "cnn.0.bias", "cnn.1.weight", "cnn.1.bias", "cnn.1.running_mean", "cnn.1.running_var", "cnn.4.weight", "cnn.4.bias", "cnn.5.weight", "cnn.5.bias", "cnn.5.running_mean", "cnn.5.running_var", "cnn.8.weight", "cnn.8.bias", "cnn.9.weight", "cnn.9.bias", "cnn.9.running_mean", "cnn.9.running_var", "cnn.13.weight", "cnn.13.bias". 
+	Missing key(s) in state_dict: "cnn.0.weight", "cnn.0.bias", "cnn.1.weight", "cnn.1.bias", "cnn.1.running_mean", "cnn.1.running_var", "cnn.4.weight", "cnn.4.bias", "cnn.5.weight", "cnn.5.bias", "cnn.5.running_mean", "cnn.5.running_var", "cnn.8.weight", "cnn.8.bias", "cnn.9.weight", "cnn.9.bias", "cnn.9.running_mean", "cnn.9.running_var", "cnn.13.weight", "cnn.13.bias".
 	size mismatch for head.0.weight: copying a param with shape torch.Size([128, 64]) from checkpoint, the shape in current model is torch.Size([128, 320]).
 ============================================================
   Experiment metadata
@@ -1265,8 +1265,8 @@ experiment           Acc%    MP%     MR%     F1%
 ----------------------------------------------------
 nocnn                  66.97   41.36   40.93   39.82
 
- Container thesis_experiments-evaluate-run-8e4cb7b43166 Creating 
- Container thesis_experiments-evaluate-run-8e4cb7b43166 Created 
+ Container thesis_experiments-evaluate-run-8e4cb7b43166 Creating
+ Container thesis_experiments-evaluate-run-8e4cb7b43166 Created
 2026-06-23 10:52:16,206 INFO Experiment=nocnn  epoch=256  val_acc_train=0.6586
 
 ── Thesis Experiment Results: nocnn ──────────────────────────

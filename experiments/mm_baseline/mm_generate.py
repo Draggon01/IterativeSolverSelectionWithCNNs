@@ -180,7 +180,7 @@ def main() -> None:
         _ensure("features", shape=(0, MM_N_FEATURES), maxshape=(None, MM_N_FEATURES),
                 dtype="f4", chunks=(256, MM_N_FEATURES))
         _ensure("labels",   shape=(0,), maxshape=(None,), dtype="i4", chunks=(256,))
-        _ensure("runtimes", shape=(0, MM_N_SOLVERS), maxshape=(None, MM_N_SOLVERS),
+        _ensure("runtimes", shape=(0, MM_N_SOLVERS), maxshape=(None, None),
                 dtype="f4", chunks=(256, MM_N_SOLVERS))
         _ensure("source",   shape=(0,), maxshape=(None,),
                 dtype=h5py.string_dtype(), chunks=(256,))

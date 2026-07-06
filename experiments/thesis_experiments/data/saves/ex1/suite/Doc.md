@@ -1,0 +1,1 @@
+**SOLVER_TIMEOUT=60 MAX_N=100000 DATA_DIR=./data/saves/ex1/suite CACHE_DIR=../shared/cache docker compose run -d ingest**

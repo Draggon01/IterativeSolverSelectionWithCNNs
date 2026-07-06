@@ -28,12 +28,19 @@ if not os.path.exists(h5_path):
     sys.exit(1)
 
 with h5py.File(h5_path, "r") as f:
-    labels  = f["labels"][:]
-    solvers = [s.decode() if isinstance(s, bytes) else s for s in f.attrs["solvers"]]
+    labels   = f["labels"][:]
+    solvers  = [s.decode() if isinstance(s, bytes) else s for s in f.attrs["solvers"]]
+    sizes    = (np.exp(f["features"][:, 0]) - 1).astype(int)  # feature 0 = log(1+n)
+    if "source" in f:
+        sources = [s.decode() if isinstance(s, bytes) else s for s in f["source"][:]]
+    else:
+        sources = ["synthetic"] * len(labels)
 
-n_solvers = len(solvers)
-counts    = np.bincount(labels, minlength=n_solvers)
-total     = len(labels)
+n_solvers    = len(solvers)
+counts       = np.bincount(labels, minlength=n_solvers)
+total        = len(labels)
+n_synthetic  = sum(1 for s in sources if s.startswith("synthetic"))
+n_suitesparse = total - n_synthetic
 
 # Sort by count descending for readability
 order   = np.argsort(counts)[::-1]
@@ -43,11 +50,30 @@ pcts    = vals / total * 100
 
 # ── text summary ──────────────────────────────────────────────────────────────
 print(f"\nSolver win distribution  ({total} samples, {DATA_DIR})")
+print(f"  Synthetic    : {n_synthetic:>6}  ({n_synthetic/total*100:.1f}%)")
+print(f"  SuiteSparse  : {n_suitesparse:>6}  ({n_suitesparse/total*100:.1f}%)")
 print(f"{'Rank':<5} {'Solver':<25} {'Wins':>6}  {'%':>6}")
 print("─" * 46)
 for rank, (name, cnt, pct) in enumerate(zip(names, vals, pcts), 1):
     bar = "█" * int(pct / 2)
     print(f"  {rank:<3} {name:<25} {cnt:>6}  {pct:>5.1f}%  {bar}")
+print()
+
+# ── matrix size table (per winning solver) ────────────────────────────────────
+print(f"── Matrix sizes (n = number of rows)  overall: "
+      f"min={sizes.min()}  median={int(np.median(sizes))}  "
+      f"mean={int(sizes.mean())}  max={sizes.max()}")
+print(f"\n  {'Solver':<25}  {'N':>6}  {'min n':>7}  {'med n':>7}  {'mean n':>7}  {'max n':>7}")
+print(f"  {'-'*25}  {'-'*6}  {'-'*7}  {'-'*7}  {'-'*7}  {'-'*7}")
+for i, name in enumerate(solvers):
+    cnt = counts[i]
+    if cnt == 0:
+        print(f"  {name:<25}  {cnt:>6}  {'—':>7}  {'—':>7}  {'—':>7}  {'—':>7}")
+        continue
+    s    = sizes[labels == i]
+    flag = "  ⚠ small" if int(np.median(s)) < 500 else ""
+    print(f"  {name:<25}  {cnt:>6}  {s.min():>7}  {int(np.median(s)):>7}  "
+          f"{int(s.mean()):>7}  {s.max():>7}{flag}")
 print()
 
 # ── figure ────────────────────────────────────────────────────────────────────

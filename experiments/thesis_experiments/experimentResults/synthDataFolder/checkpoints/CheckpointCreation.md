@@ -1,0 +1,1 @@
+SKIP_DATAGEN=1 ./run_experiments | in the thesis_experiments folder

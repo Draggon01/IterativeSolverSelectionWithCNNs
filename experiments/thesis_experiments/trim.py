@@ -87,8 +87,9 @@ def select_max_per_class(labels: np.ndarray, sources: list[str], cap_set) -> np.
             continue
 
         if SUITESPARSE_ONLY:
-            real_idx  = np.array([i for i in idx if sources[i].startswith("suitesparse")])
-            synth_idx = np.array([i for i in idx if not sources[i].startswith("suitesparse")])
+            real_mask = np.array([sources[i].startswith("suitesparse") for i in idx])
+            real_idx  = idx[real_mask]
+            synth_idx = idx[~real_mask]
             if len(real_idx) >= MAX_PER_CLASS:
                 chosen = rng.choice(real_idx, size=MAX_PER_CLASS, replace=False)
             else:
@@ -125,8 +126,9 @@ def select_paper_sizes(labels: np.ndarray, sources: list[str]) -> np.ndarray:
             continue
 
         if SUITESPARSE_ONLY:
-            real_idx  = np.array([i for i in idx if sources[i].startswith("suitesparse")])
-            synth_idx = np.array([i for i in idx if not sources[i].startswith("suitesparse")])
+            real_mask = np.array([sources[i].startswith("suitesparse") for i in idx])
+            real_idx  = idx[real_mask]
+            synth_idx = idx[~real_mask]
             if len(real_idx) >= cap:
                 chosen = rng.choice(real_idx, size=cap, replace=False)
             else:
@@ -146,13 +148,16 @@ def select_paper_sizes(labels: np.ndarray, sources: list[str]) -> np.ndarray:
 
 def write_subset(src: h5py.File, keep: np.ndarray) -> None:
     with h5py.File(tmp_path, "w") as dst:
-        for key in ("images", "features", "labels", "runtimes", "source"):
-            data   = src[key][keep]
-            src_ds = src[key]
+        for key in src.keys():
+            src_ds   = src[key]
+            data     = src_ds[keep]
             maxshape = tuple(None if i == 0 else s for i, s in enumerate(data.shape))
-            kwargs = dict(maxshape=maxshape, chunks=src_ds.chunks or True)
-            if src_ds.dtype.kind == "O":
+            kwargs   = dict(maxshape=maxshape, chunks=src_ds.chunks or True)
+            if h5py.check_string_dtype(src_ds.dtype):
                 kwargs["dtype"] = h5py.string_dtype()
+            elif src_ds.dtype.kind == "O":
+                # numeric vlen (mat_data, mat_indices, mat_indptr)
+                kwargs["dtype"] = h5py.vlen_dtype(h5py.check_vlen_dtype(src_ds.dtype))
             dst.create_dataset(key, data=data, **kwargs)
         for attr_key, attr_val in src.attrs.items():
             dst.attrs[attr_key] = attr_val

@@ -23,16 +23,18 @@ Environment variables (all optional):
 import os
 import glob
 import logging
+import time
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.amp import GradScaler, autocast
 from torch.utils.data import Dataset, DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 import h5py
 
-from model import SolverSelectorNet, N_FEATURES, N_SOLVERS, SOLVERS
+from model import SolverSelectorNet, N_FEATURES, N_SOLVERS, SOLVERS, IMAGE_SIZE, MODEL_SIZE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -56,6 +58,10 @@ _dev = os.getenv("DEVICE", "auto")
 DEVICE = torch.device(
     ("cuda" if torch.cuda.is_available() else "cpu") if _dev == "auto" else _dev
 )
+MIXED_PRECISION      = os.getenv("MIXED_PRECISION", "1") == "1" and DEVICE.type == "cuda"
+NO_CNN               = os.getenv("NO_CNN", "0") == "1"
+CONVERGENCE_PENALTY  = float(os.getenv("CONVERGENCE_PENALTY", "0.0"))
+# MODEL_SIZE and IMAGE_MODE2 are read from model.py module-level env vars
 
 
 # ── dataset ───────────────────────────────────────────────────────────────────
@@ -64,10 +70,11 @@ class SolverDataset(Dataset):
     """
     Lazy-loading HDF5 dataset compatible with multi-worker DataLoader.
 
-    Each item is (image, features, label) where:
-        image    — (1, H, W) float32 sparsity-pattern tensor
-        features — (N_FEATURES,) float32 matrix statistics tensor
-        label    — int class index into SOLVERS
+    Each item is (image, features, label, converge_mask) where:
+        image        — (C, H, W) float32 sparsity-pattern tensor
+        features     — (N_FEATURES,) float32 matrix statistics tensor
+        label        — int class index into SOLVERS
+        converge_mask — (N_SOLVERS,) float32: 1.0 where solver converged, 0.0 where it diverged
     """
 
     def __init__(self, h5_path: str):
@@ -78,6 +85,9 @@ class SolverDataset(Dataset):
             self.n_features = f["features"].shape[1]
             self.n_solvers  = len(f.attrs.get("solvers", [None] * N_SOLVERS))
             self.image_mode = str(f.attrs.get("image_mode", "binary"))
+            self.has_images  = "images"  in f
+            self.has_images2 = "images2" in f
+            self.n_channels  = 2 if (self.has_images and self.has_images2) else 1
         self._file = None   # opened lazily inside each worker
 
     def __len__(self) -> int:
@@ -86,16 +96,29 @@ class SolverDataset(Dataset):
     def __getitem__(self, idx: int):
         if self._file is None:
             self._file = h5py.File(self.path, "r")
-        img  = torch.nan_to_num(
-            torch.from_numpy(self._file["images"][idx][None]),
-            nan=0.0, posinf=1.0, neginf=0.0,
-        )
+        if self.has_images:
+            img = torch.nan_to_num(
+                torch.from_numpy(self._file["images"][idx][None]),
+                nan=0.0, posinf=1.0, neginf=0.0,
+            )
+            if self.has_images2:
+                img2 = torch.nan_to_num(
+                    torch.from_numpy(self._file["images2"][idx][None]),
+                    nan=0.0, posinf=1.0, neginf=0.0,
+                )
+                img = torch.cat([img, img2], dim=0)  # (2, H, W)
+        else:
+            img = torch.zeros(self.n_channels, IMAGE_SIZE, IMAGE_SIZE)
         feat = torch.nan_to_num(
             torch.from_numpy(self._file["features"][idx]),
-            nan=0.0, posinf=1e6, neginf=-1e6,
+            nan=0.0, posinf=6e4, neginf=-6e4,
+        ).clamp_(-6e4, 6e4)  # fp16 max ~65504; clamp finite outliers too
+        lbl          = int(self._file["labels"][idx])
+        runtimes     = self._file["runtimes"][idx]          # (N_SOLVERS,) float32, NaN = diverged
+        converge_mask = torch.from_numpy(
+            np.isfinite(runtimes).astype(np.float32)        # 1.0 = converged, 0.0 = diverged
         )
-        lbl  = int(self._file["labels"][idx])
-        return img, feat, lbl
+        return img, feat, lbl, converge_mask
 
 
 # ── checkpoint helpers ────────────────────────────────────────────────────────
@@ -103,24 +126,32 @@ class SolverDataset(Dataset):
 def save_checkpoint(
     model: SolverSelectorNet,
     optimizer: optim.Optimizer,
+    scheduler: optim.lr_scheduler.LRScheduler,
     epoch: int,
     val_acc: float,
     image_mode: str = "binary",
+    scaler: "GradScaler | None" = None,
+    training_time_s: float = 0.0,
 ) -> None:
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     path = os.path.join(CHECKPOINT_DIR, f"epoch_{epoch:04d}.pt")
-    torch.save(
-        {
-            "epoch":           epoch,
-            "model_state":     model.state_dict(),
-            "optimizer_state": optimizer.state_dict(),
-            "val_acc":         val_acc,
-            "n_features":      model.stats[0].in_features,
-            "n_classes":       model.head[-1].out_features,
-            "image_mode":      image_mode,
-        },
-        path,
-    )
+    ckpt = {
+        "epoch":            epoch,
+        "model_state":      model.state_dict(),
+        "optimizer_state":  optimizer.state_dict(),
+        "scheduler_state":  scheduler.state_dict(),
+        "val_acc":          val_acc,
+        "n_features":       model.stats[0].in_features,
+        "n_classes":        model.head[-1].out_features,
+        "image_mode":       image_mode,
+        "no_cnn":           model.no_cnn,
+        "model_size":       model.model_size,
+        "in_channels":      model.in_channels,
+        "training_time_s":  training_time_s,
+    }
+    if scaler is not None:
+        ckpt["scaler_state"] = scaler.state_dict()
+    torch.save(ckpt, path)
     log.info("Checkpoint saved: %s  (val_acc=%.4f)", path, val_acc)
 
     # Remove oldest checkpoints beyond the retention limit
@@ -133,22 +164,38 @@ def save_checkpoint(
 # ── training loop ─────────────────────────────────────────────────────────────
 
 def run_epoch(
-    model:     SolverSelectorNet,
-    loader:    DataLoader,
-    criterion: nn.Module,
-    optimizer: optim.Optimizer,
-    device:    torch.device,
-    train:     bool,
+    model:               SolverSelectorNet,
+    loader:              DataLoader,
+    criterion:           nn.Module,
+    optimizer:           optim.Optimizer,
+    device:              torch.device,
+    train:               bool,
+    scaler:              "GradScaler | None" = None,
+    convergence_penalty: float = 0.0,
 ) -> tuple[float, float]:
     model.train(train)
     total_loss = correct = total = 0
     n_batches = len(loader)
+    amp_device = device.type if device.type in ("cuda", "cpu") else "cpu"
 
     with torch.set_grad_enabled(train):
-        for batch_idx, (img, feat, lbl) in enumerate(loader):
+        for batch_idx, (img, feat, lbl, converge_mask) in enumerate(loader):
             img, feat, lbl = img.to(device), feat.to(device), lbl.to(device)
-            logits = torch.clamp(model(img, feat), -50, 50)
-            loss   = criterion(logits, lbl)
+            converge_mask  = converge_mask.to(device)      # (batch, N_SOLVERS)
+
+            with autocast(device_type=amp_device, enabled=(scaler is not None)):
+                logits  = torch.clamp(model(img, feat), -50, 50)
+                ce_loss = criterion(logits, lbl)
+
+                if convergence_penalty > 0.0 and train:
+                    # Penalise probability mass assigned to non-converging solvers.
+                    # diverge_mask = 1 where solver did NOT converge for this sample.
+                    probs        = torch.softmax(logits, dim=1)
+                    diverge_mask = 1.0 - converge_mask
+                    penalty      = (probs * diverge_mask).sum(dim=1).mean()
+                    loss         = ce_loss + convergence_penalty * penalty
+                else:
+                    loss = ce_loss
 
             if torch.isnan(loss):
                 log.warning("NaN loss on batch %d — skipping", batch_idx)
@@ -158,9 +205,16 @@ def run_epoch(
 
             if train:
                 optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    optimizer.step()
 
             bs          = len(lbl)
             total_loss += loss.item() * bs
@@ -201,35 +255,77 @@ def main() -> None:
     val_ds   = Subset(dataset, val_idx)
 
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
-                              num_workers=2, pin_memory=True, drop_last=True)
+                              num_workers=2, pin_memory=True,
+                              drop_last=(len(train_ds) > BATCH_SIZE))
     val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=2, pin_memory=True)
 
-    model     = SolverSelectorNet(dataset.n_features, dataset.n_solvers).to(DEVICE)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
+    # Inverse-frequency class weights so rare classes (250 samples) get equal
+    # gradient signal as dominant ones (600 samples) despite the imbalance.
+    train_labels = all_labels[train_idx]
+    counts = np.bincount(train_labels, minlength=dataset.n_solvers).astype(np.float32)
+    class_weights = torch.tensor(
+        len(train_idx) / (dataset.n_solvers * np.maximum(counts, 1)),
+        dtype=torch.float32,
+    ).to(DEVICE)
+
+    model     = SolverSelectorNet(
+                    dataset.n_features, dataset.n_solvers,
+                    no_cnn=NO_CNN, model_size=MODEL_SIZE,
+                    in_channels=dataset.n_channels,
+                ).to(DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+    optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-3)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=MAX_EPOCHS)
+    scaler    = GradScaler() if MIXED_PRECISION else None
     writer    = SummaryWriter(log_dir=LOG_DIR)
+    log.info("Class weights (min=%.3f max=%.3f): %s",
+             class_weights.min().item(), class_weights.max().item(),
+             {SOLVERS[i]: f"{class_weights[i].item():.2f}" for i in class_weights.argsort()[:3].tolist()
+              + class_weights.argsort()[-3:].tolist()})
+    log.info("Mixed precision (AMP): %s", "enabled" if scaler else "disabled")
+    log.info("CNN branch: %s", "disabled (features only)" if NO_CNN else "enabled")
+    log.info("Model size: %s  |  in_channels: %d", MODEL_SIZE, dataset.n_channels)
+    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    log.info("Trainable parameters: %s", f"{n_params:,}")
+    log.info("Convergence penalty λ: %.2f", CONVERGENCE_PENALTY)
 
     # Resume from the latest checkpoint in this experiment's directory if one exists
-    start_epoch  = 1
-    existing     = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, "epoch_*.pt")))
-    ckpt_path    = existing[-1] if existing else None
+    start_epoch      = 1
+    prev_train_time  = 0.0
+    existing         = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, "epoch_*.pt")))
+    ckpt_path        = existing[-1] if existing else None
     if ckpt_path:
-        ckpt = torch.load(ckpt_path, map_location=DEVICE)
-        model.load_state_dict(ckpt["model_state"])
-        optimizer.load_state_dict(ckpt["optimizer_state"])
-        start_epoch = ckpt["epoch"] + 1
-        log.info("Resumed from %s  (epoch %d)", ckpt_path, ckpt["epoch"])
+        ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
+        ckpt_size     = ckpt.get("model_size",  "small")
+        ckpt_channels = ckpt.get("in_channels", 1)
+        if ckpt_size != MODEL_SIZE or ckpt_channels != dataset.n_channels:
+            log.warning(
+                "Checkpoint mismatch (size=%r channels=%d) vs current (size=%r channels=%d)"
+                " — starting from scratch.",
+                ckpt_size, ckpt_channels, MODEL_SIZE, dataset.n_channels,
+            )
+            ckpt_path = None
+        else:
+            model.load_state_dict(ckpt["model_state"])
+            optimizer.load_state_dict(ckpt["optimizer_state"])
+            if "scheduler_state" in ckpt:
+                scheduler.load_state_dict(ckpt["scheduler_state"])
+            if scaler is not None and "scaler_state" in ckpt:
+                scaler.load_state_dict(ckpt["scaler_state"])
+            start_epoch     = ckpt["epoch"] + 1
+            prev_train_time = ckpt.get("training_time_s", 0.0)
+            log.info("Resumed from %s  (epoch %d)", ckpt_path, ckpt["epoch"])
 
     log.info(
         "Experiment=%s | device=%s | train=%d val=%d | epochs=%d batch=%d lr=%.1e",
         EXPERIMENT, DEVICE, len(train_idx), len(val_idx), MAX_EPOCHS, BATCH_SIZE, LR,
     )
 
+    t_run_start = time.perf_counter()
     for epoch in range(start_epoch, MAX_EPOCHS + 1):
-        tr_loss, tr_acc = run_epoch(model, train_loader, criterion, optimizer, DEVICE, train=True)
-        va_loss, va_acc = run_epoch(model, val_loader,   criterion, optimizer, DEVICE, train=False)
+        tr_loss, tr_acc = run_epoch(model, train_loader, criterion, optimizer, DEVICE, train=True,  scaler=scaler, convergence_penalty=CONVERGENCE_PENALTY)
+        va_loss, va_acc = run_epoch(model, val_loader,   criterion, optimizer, DEVICE, train=False, scaler=None,   convergence_penalty=0.0)
         scheduler.step()
 
         writer.add_scalars("loss", {"train": tr_loss, "val": va_loss}, epoch)
@@ -243,10 +339,16 @@ def main() -> None:
         )
 
         if epoch % CHECKPOINT_EVERY == 0 or epoch == MAX_EPOCHS:
-            save_checkpoint(model, optimizer, epoch, va_acc, dataset.image_mode)
+            elapsed = prev_train_time + (time.perf_counter() - t_run_start)
+            save_checkpoint(model, optimizer, scheduler, epoch, va_acc,
+                            dataset.image_mode, scaler, training_time_s=elapsed)
 
+    total_time = prev_train_time + (time.perf_counter() - t_run_start)
+    h, m = divmod(int(total_time), 3600)
+    m, s = divmod(m, 60)
+    log.info("Training complete.  Total wall time: %dh %02dm %02ds (%.0fs)",
+             h, m, s, total_time)
     writer.close()
-    log.info("Training complete.")
 
 
 if __name__ == "__main__":

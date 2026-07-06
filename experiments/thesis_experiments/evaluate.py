@@ -20,6 +20,7 @@ Environment variables:
 import glob
 import logging
 import os
+import time
 
 import h5py
 import numpy as np
@@ -59,8 +60,13 @@ def load_checkpoint():
     ckpts = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, "epoch_*.pt")))
     if not ckpts:
         raise FileNotFoundError(f"No checkpoints found in {CHECKPOINT_DIR}")
-    ckpt  = torch.load(ckpts[-1], map_location=DEVICE)
-    model = SolverSelectorNet(ckpt["n_features"], ckpt["n_classes"]).to(DEVICE)
+    ckpt  = torch.load(ckpts[-1], map_location=DEVICE, weights_only=False)
+    model = SolverSelectorNet(
+        ckpt["n_features"], ckpt["n_classes"],
+        no_cnn=ckpt.get("no_cnn", False),
+        model_size=ckpt.get("model_size", "small"),
+        in_channels=ckpt.get("in_channels", 1),
+    ).to(DEVICE)
     model.load_state_dict(ckpt["model_state"])
     model.eval()
     return model, ckpt
@@ -91,6 +97,34 @@ def near_optimal_accuracy(y_pred: np.ndarray, runtimes: np.ndarray, tol: float) 
     return float(np.mean(pred_t <= threshold.squeeze()))
 
 
+def mean_runtime_ratio(y_pred: np.ndarray, runtimes: np.ndarray) -> tuple[float, float]:
+    """
+    Mean ratio of predicted solver runtime to optimal runtime.
+    Returns (mean_ratio, median_ratio). Only counts samples where the
+    predicted solver converged; samples where it diverged (NaN runtime)
+    are excluded from the ratio but counted in failure_rate instead.
+    A value of 1.0 = always picks the best; 2.0 = twice as slow on average.
+    """
+    best   = np.nanmin(runtimes, axis=1)
+    pred_t = runtimes[np.arange(len(y_pred)), y_pred]
+    # Only include samples where both the prediction and optimal are finite
+    valid  = np.isfinite(pred_t) & np.isfinite(best) & (best > 0)
+    ratios = pred_t[valid] / best[valid]
+    if valid.sum() == 0:
+        return float("nan"), float("nan")
+    return float(np.mean(ratios)), float(np.median(ratios))
+
+
+def failure_rate(y_pred: np.ndarray, runtimes: np.ndarray) -> tuple[float, int]:
+    """
+    Fraction of predictions that chose a solver which did not converge (NaN runtime).
+    Returns (rate, count).
+    """
+    pred_t   = runtimes[np.arange(len(y_pred)), y_pred]
+    n_failed = int(np.sum(~np.isfinite(pred_t)))
+    return n_failed / len(y_pred), n_failed
+
+
 def main() -> None:
     h5_path = os.path.join(DATA_DIR, "dataset.h5")
     dataset = SolverDataset(h5_path)
@@ -114,13 +148,15 @@ def main() -> None:
              EXPERIMENT, ckpt["epoch"], ckpt["val_acc"])
 
     all_preds, all_labels_out, all_topk = [], [], []
+    t_infer_start = time.perf_counter()
     with torch.no_grad():
-        for img, feat, lbl in val_loader:
+        for img, feat, lbl, _ in val_loader:   # _ = converge_mask, not needed for eval
             img, feat = img.to(DEVICE), feat.to(DEVICE)
             logits = model(img, feat)
             all_preds.append(logits.argmax(1).cpu().numpy())
             all_labels_out.append(lbl.numpy())
             all_topk.append(logits.argsort(dim=1, descending=True)[:, :3].cpu().numpy())
+    infer_total_s = time.perf_counter() - t_infer_start
 
     y_pred = np.concatenate(all_preds)
     y_true = np.concatenate(all_labels_out)
@@ -134,19 +170,38 @@ def main() -> None:
     order        = np.argsort(np.argsort(val_idx))
     val_runtimes = val_runtimes[order]
 
-    metrics = compute_metrics(y_true, y_pred, n_classes)
-    noa_5   = near_optimal_accuracy(y_pred, val_runtimes, 0.05)
-    noa_10  = near_optimal_accuracy(y_pred, val_runtimes, 0.10)
-    noa_20  = near_optimal_accuracy(y_pred, val_runtimes, 0.20)
+    metrics        = compute_metrics(y_true, y_pred, n_classes)
+    noa_5          = near_optimal_accuracy(y_pred, val_runtimes, 0.05)
+    noa_10         = near_optimal_accuracy(y_pred, val_runtimes, 0.10)
+    noa_20         = near_optimal_accuracy(y_pred, val_runtimes, 0.20)
+    mrr_mean, mrr_med = mean_runtime_ratio(y_pred, val_runtimes)
+    fail_rate, fail_n = failure_rate(y_pred, val_runtimes)
 
     with h5py.File(h5_path, "r") as f:
         full_labels = f["labels"][:]
     our_counts = np.bincount(full_labels, minlength=n_classes)
 
+    train_time_s   = ckpt.get("training_time_s", float("nan"))
+    n_val          = len(y_true)
+    infer_per_ms   = (infer_total_s / n_val) * 1000
+
+    def _fmt_time(s):
+        if s != s:   # nan
+            return "n/a (old checkpoint)"
+        h, rem = divmod(int(s), 3600)
+        m, sec = divmod(rem, 60)
+        return f"{h}h {m:02d}m {sec:02d}s  ({s:.0f}s total)" if h else \
+               f"{m}m {sec:02d}s  ({s:.0f}s total)"
+
     print(f"\n── Thesis Experiment Results: {EXPERIMENT} ──────────────────────────")
+    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Checkpoint   : epoch {ckpt['epoch']}")
-    print(f"  Val samples  : {len(y_true)}  (of {len(dataset)} total)")
+    print(f"  Val samples  : {n_val}  (of {len(dataset)} total)")
     print(f"  Classes      : {n_classes}")
+    print(f"  Model        : {ckpt.get('model_size','small')}  |  "
+          f"in_channels={ckpt.get('in_channels',1)}  |  params={n_params:,}")
+    print(f"  Training time: {_fmt_time(train_time_s)}")
+    print(f"  Inference    : {infer_total_s*1000:.1f}ms total  ({infer_per_ms:.3f}ms/sample on {DEVICE})")
     print()
     print(f"  Accuracy (Acc) : {metrics['Acc']*100:.2f}%   (paper: 78.54%)")
     print(f"  Macro Precision: {metrics['MP']*100:.2f}%   (paper: 63.41%)")
@@ -160,14 +215,25 @@ def main() -> None:
     print(f"  Near-optimal Acc (±10%) : {noa_10*100:.2f}%")
     print(f"  Near-optimal Acc (±20%) : {noa_20*100:.2f}%")
     print()
-    print(f"  {'Solver':<20} {'Our N':>7}  {'Paper N':>7}  {'F1':>6}  {'Prec':>6}  {'Rec':>6}")
-    print(f"  {'-'*20}  {'-'*7}  {'-'*7}  {'-'*6}  {'-'*6}  {'-'*6}")
+    print(f"  Mean runtime ratio      : {mrr_mean:.3f}x  (median: {mrr_med:.3f}x)")
+    print(f"  Failure rate            : {fail_rate*100:.2f}%  ({fail_n}/{len(y_true)} predictions chose a non-converging solver)")
+    print()
+    # Per-class failure rate: among val samples of class i that we predicted as i,
+    # how many had NaN runtime for that solver?
+    pred_runtimes = val_runtimes[np.arange(len(y_pred)), y_pred]
+    print(f"  {'Solver':<20} {'Our N':>7}  {'Paper N':>7}  {'F1':>6}  {'Prec':>6}  {'Rec':>6}  {'Fail%':>6}")
+    print(f"  {'-'*20}  {'-'*7}  {'-'*7}  {'-'*6}  {'-'*6}  {'-'*6}  {'-'*6}")
     for i, name in enumerate(SOLVER_NAMES):
-        paper_n = PAPER_COUNTS.get(name, 0)
+        paper_n   = PAPER_COUNTS.get(name, 0)
+        pred_mask = y_pred == i
+        n_pred    = pred_mask.sum()
+        n_fail_i  = int(np.sum(~np.isfinite(pred_runtimes[pred_mask]))) if n_pred > 0 else 0
+        fail_pct  = 100.0 * n_fail_i / n_pred if n_pred > 0 else 0.0
         print(f"  {name:<20} {our_counts[i]:>7}  {paper_n:>7}  "
               f"{metrics['per_class_f1'][i]*100:>5.1f}%  "
               f"{metrics['per_class_p'][i]*100:>5.1f}%  "
-              f"{metrics['per_class_r'][i]*100:>5.1f}%")
+              f"{metrics['per_class_r'][i]*100:>5.1f}%  "
+              f"{fail_pct:>5.1f}%")
     print("─────────────────────────────────────────────────────────────────\n")
 
 

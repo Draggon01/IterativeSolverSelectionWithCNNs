@@ -7,10 +7,13 @@ services:
     volumes:
       - ${DATA_DIR:-./data}:/workspace/data
       - ../shared/generators.py:/workspace/generators.py
+      - ../shared:/shared
       - ./model.py:/workspace/model.py
       - ./generate.py:/workspace/generate.py
     environment:
       - N_SAMPLES=${N_SAMPLES:-10000}
+      - MIN_PER_CLASS=${MIN_PER_CLASS:-0}
+      - STATS_FILE=${STATS_FILE:-../shared/sampler_stats.json}
       - IMAGE_MODE=${IMAGE_MODE:-binary}
       - IMAGE_SIZE=${IMAGE_SIZE:-64}
       - MAX_ITER=${MAX_ITER:-2000}
@@ -26,6 +29,7 @@ services:
     command: python ingest.py
     volumes:
       - ${DATA_DIR:-./data}:/workspace/data
+      - ${CACHE_DIR:-./data/suitesparse_cache}:/workspace/cache
       - ../shared/generators.py:/workspace/generators.py
       - ../shared/matrix_io.py:/workspace/matrix_io.py
       - ./model.py:/workspace/model.py
@@ -33,6 +37,7 @@ services:
     environment:
       - MODE=${MODE:-auto}
       - DATA_DIR=/workspace/data
+      - CACHE_DIR=/workspace/cache
       - MIN_N=${MIN_N:-100}
       - MAX_N=${MAX_N:-50000}
       - N_MATRICES=${N_MATRICES:-200}
@@ -48,6 +53,7 @@ services:
     command: python ingest.py
     volumes:
       - ${DATA_DIR:-./data}:/workspace/data
+      - ${CACHE_DIR:-./data/suitesparse_cache}:/workspace/cache
       - ../shared/generators.py:/workspace/generators.py
       - ../shared/matrix_io.py:/workspace/matrix_io.py
       - ./model.py:/workspace/model.py
@@ -55,7 +61,7 @@ services:
     environment:
       - MODE=githubdata
       - DATA_DIR=/workspace/data
-      - CACHE_DIR=/workspace/data/suitesparse_cache
+      - CACHE_DIR=/workspace/cache
       - MIN_N=${MIN_N:-100}
       - MAX_N=${MAX_N:-500000}
       - N_MATRICES=${N_MATRICES:-621}
@@ -63,6 +69,54 @@ services:
       - MAX_ITER=${MAX_ITER:-2000}
       - TOL=${TOL:-1e-8}
       - SOLVER_TIMEOUT=${SOLVER_TIMEOUT:-60}
+
+  # Utility: drop specific rows by source substring (e.g. corrupted entries)
+  drop_rows:
+    build: ../../container
+    command: python drop_rows.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./drop_rows.py:/workspace/drop_rows.py
+    environment:
+      - DATA_DIR=/workspace/data
+      - DROP_SOURCES=${DROP_SOURCES:-}
+
+  # Step 1c0b: Recompute matrix features after adding new features to model.py
+  recompute_features:
+    build: ../../container
+    command: python recompute_features.py
+    volumes:
+      - ${DATA_DIR:-./data/base}:/workspace/data
+      - ${CACHE_DIR:-../shared/cache}:/workspace/cache
+      - ./model.py:/workspace/model.py
+      - ./recompute_features.py:/workspace/recompute_features.py
+    environment:
+      - DATA_DIR=/workspace/data
+      - CACHE_DIR=/workspace/cache
+      - CHUNK=${CHUNK:-200}
+
+  # Step 1c0: Migrate existing dataset.h5 to support extensible solver columns
+  migrate:
+    build: ../../container
+    command: python migrate_h5.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./migrate_h5.py:/workspace/migrate_h5.py
+    environment:
+      - DATA_DIR=/workspace/data
+      - CHUNK=${CHUNK:-500}
+
+  # Step 1c2: Merge multiple dataset.h5 files into one (sources opened read-only)
+  merge:
+    build: ../../container
+    command: python merge.py
+    volumes:
+      - ./data:/workspace/data
+      - ./merge.py:/workspace/merge.py
+    environment:
+      - SRC_DIRS=${SRC_DIRS:-/workspace/data/base /workspace/data/suitesparse_githubdata}
+      - OUT_DIR=${OUT_DIR:-/workspace/data/merged}
+      - CHUNK=${CHUNK:-500}
 
   # Step 1d: Trim dataset (max_per_class, suitesparse_only, or paper_sizes)
   trim:
@@ -79,20 +133,25 @@ services:
       - SUITESPARSE_ONLY=${SUITESPARSE_ONLY:-0}
       - SEED=${SEED:-42}
 
-  # Step 1e: Re-render images from a base dataset (requires STORE_MATRIX=1 on datagen)
+  # Step 1e: Re-render images from a base dataset
+  # For synthetic data: requires STORE_MATRIX=1 during datagen
+  # For SuiteSparse data: reads from CACHE_DIR (mtx files already downloaded)
   render:
     build: ../../container
     command: python render.py
     volumes:
       - ${SRC_DATA_DIR:-./data/base}:/workspace/data/base
       - ${DATA_DIR:-./data}:/workspace/data
+      - ${CACHE_DIR:-./data/suitesparse_cache}:/workspace/cache
       - ./model.py:/workspace/model.py
       - ./render.py:/workspace/render.py
     environment:
       - SRC_DATA_DIR=/workspace/data/base
       - DATA_DIR=/workspace/data
+      - CACHE_DIR=/workspace/cache
       - IMAGE_MODE=${IMAGE_MODE:-binary}
       - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - IMAGE_MODE2=${IMAGE_MODE2:-}
 
   # Step 2: Train the CNN+MLP solver-selection classifier
   trainer:
@@ -117,7 +176,12 @@ services:
       - KEEP_LAST_N=${KEEP_LAST_N:-3}
       - IMAGE_MODE=${IMAGE_MODE:-binary}
       - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - NO_CNN=${NO_CNN:-0}
+      - MODEL_SIZE=${MODEL_SIZE:-small}
+      - IMAGE_MODE2=${IMAGE_MODE2:-}
+      - CONVERGENCE_PENALTY=${CONVERGENCE_PENALTY:-0.0}
       - DEVICE=${DEVICE:-auto}
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     shm_size: '2gb'
     stop_grace_period: 60s
     deploy:
@@ -143,7 +207,51 @@ services:
       - DATA_DIR=/workspace/data
       - CHECKPOINT_DIR=/workspace/checkpoints
       - VAL_SPLIT=${VAL_SPLIT:-0.10}
+      - NO_CNN=${NO_CNN:-0}
       - DEVICE=${DEVICE:-auto}
+    shm_size: '2gb'
+
+  # Step 3a: Render all image modes into one HDF5 (prerequisite for ensemble_evaluate)
+  render_multimode:
+    build: ../../container
+    command: python render_multimode.py
+    volumes:
+      - ${SRC_DATA_DIR:-./data/base}:/workspace/data/base
+      - ${MULTIMODE_DIR:-./data/multimode}:/workspace/data/multimode
+      - ./model.py:/workspace/model.py
+      - ./render_multimode.py:/workspace/render_multimode.py
+    environment:
+      - SRC_DATA_DIR=/workspace/data/base
+      - DATA_DIR=/workspace/data/multimode
+      - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - MODES=${MODES:-magnitude signed_magnitude rcm_signed_magnitude symmetry rcm_magnitude density}
+
+  # Step 3b: Ensemble evaluation — renders multimode HDF5 automatically if needed
+  ensemble_evaluate:
+    build: ../../container
+    command: python ensemble_evaluate.py
+    volumes:
+      - ${SRC_DATA_DIR:-./data/base}:/workspace/data/base
+      - ${MULTIMODE_DIR:-./data/multimode}:/workspace/data/multimode
+      - ${CACHE_DIR:-../shared/cache}:/workspace/cache
+      - ./checkpoints:/workspace/checkpoints
+      - ./experimentResults:/workspace/experimentResults
+      - ./model.py:/workspace/model.py
+      - ./train.py:/workspace/train.py
+      - ./evaluate.py:/workspace/evaluate.py
+      - ./ensemble_evaluate.py:/workspace/ensemble_evaluate.py
+      - ./render_multimode.py:/workspace/render_multimode.py
+    environment:
+      - EXPERIMENTS=${EXPERIMENTS:-magnitude__signed_magnitude_64 magnitude__rcm_signed_magnitude_64 magnitude__symmetry_64 rcm_magnitude__signed_magnitude_64}
+      - MULTIMODE_DIR=/workspace/data/multimode
+      - SRC_DATA_DIR=/workspace/data/base
+      - CACHE_DIR=/workspace/cache
+      - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - CHECKPOINT_DIR=/workspace/checkpoints
+      - VAL_SPLIT=${VAL_SPLIT:-0.10}
+      - DEVICE=${DEVICE:-auto}
+      - RESULTS_FILE=${RESULTS_FILE:-}
+    shm_size: '2gb'
 
   # Step 4: Run inference on a new matrix
   predict:
@@ -166,6 +274,31 @@ services:
       - DEVICE=${DEVICE:-auto}
       # - MATRIX_PATH=/workspace/data/my_matrix.npz
       # - BENCHMARK_T=30
+
+  # Utility: non-learning baselines (majority class, 1-NN, 5-NN)
+  baselines:
+    build: ../../container
+    command: python evaluate_baselines.py
+    volumes:
+      - ${DATA_DIR:-./data}:/workspace/data
+      - ./model.py:/workspace/model.py
+      - ./evaluate_baselines.py:/workspace/evaluate_baselines.py
+    environment:
+      - DATA_DIR=/workspace/data
+      - VAL_SPLIT=${VAL_SPLIT:-0.10}
+
+  # Utility: print solver pairs + feature names (captured into results_summary.txt)
+  meta:
+    build: ../../container
+    command: python meta.py
+    volumes:
+      - ./model.py:/workspace/model.py
+      - ./meta.py:/workspace/meta.py
+    environment:
+      - EXPERIMENT=${EXPERIMENT:-default}
+      - IMAGE_MODE=${IMAGE_MODE:-binary}
+      - IMAGE_SIZE=${IMAGE_SIZE:-64}
+      - NO_CNN=${NO_CNN:-0}
 
   # Utility: solver win distribution — saves viz/solver_wins.png
   viz:
