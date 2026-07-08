@@ -20,6 +20,7 @@ services:
       - TOL=${TOL:-1e-8}
       - STORE_MATRIX=${STORE_MATRIX:-0}
       - SEED=${SEED:-42}
+      - SOLVER_SET=${SOLVER_SET:-main}
       - VERBOSE=${VERBOSE:-0}
       - DATA_DIR=/workspace/data
 
@@ -180,6 +181,7 @@ services:
       - MODEL_SIZE=${MODEL_SIZE:-small}
       - IMAGE_MODE2=${IMAGE_MODE2:-}
       - CONVERGENCE_PENALTY=${CONVERGENCE_PENALTY:-0.0}
+      - SOLVER_SET=${SOLVER_SET:-main}
       - DEVICE=${DEVICE:-auto}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     shm_size: '2gb'
@@ -208,6 +210,7 @@ services:
       - CHECKPOINT_DIR=/workspace/checkpoints
       - VAL_SPLIT=${VAL_SPLIT:-0.10}
       - NO_CNN=${NO_CNN:-0}
+      - SOLVER_SET=${SOLVER_SET:-main}
       - DEVICE=${DEVICE:-auto}
     shm_size: '2gb'
 

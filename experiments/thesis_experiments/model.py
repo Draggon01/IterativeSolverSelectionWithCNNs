@@ -14,43 +14,9 @@ import torch.nn as nn
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-# ── THESIS PAIRS (30 combinations) — restore for thesis experiments ───────────
-# Uncomment this block and comment out the BASELINE PAIRS block below to switch
-# back to the full 30-pair thesis set.
-#
-# SOLVER_PAIRS: list[tuple[str, str]] = [
-#     # CG variants — SPD only
-#     ("cg",     "none"),   ("cg",     "jacobi"), ("cg",     "icc"),
-#     ("cg",     "sor"),    ("cg",     "gamg"),
-#     # MINRES variants — symmetric (incl. SPD)
-#     ("minres", "none"),   ("minres", "jacobi"), ("minres", "icc"),
-#     ("minres", "sor"),    ("minres", "gamg"),
-#     # GMRES variants — general
-#     ("gmres",  "none"),   ("gmres",  "jacobi"), ("gmres",  "ilu"),
-#     ("gmres",  "sor"),    ("gmres",  "gamg"),
-#     # BiCG variants — general
-#     ("bicg",   "none"),   ("bicg",   "jacobi"), ("bicg",   "ilu"),
-#     ("bicg",   "sor"),    ("bicg",   "gamg"),
-#     # BiCGSTAB variants — general
-#     ("bcgs",   "none"),   ("bcgs",   "jacobi"), ("bcgs",   "ilu"),
-#     ("bcgs",   "sor"),    ("bcgs",   "gamg"),
-#     # TFQMR variants — general
-#     ("tfqmr",  "none"),   ("tfqmr",  "jacobi"), ("tfqmr",  "ilu"),
-#     ("tfqmr",  "sor"),    ("tfqmr",  "gamg"),
-# ]
-# _SYM_ONLY_KSP = {"cg", "minres"}
-# APPLICABLE: dict[str, list[tuple[str, str]]] = {
-#     "spd":       SOLVER_PAIRS,
-#     "poisson2d": SOLVER_PAIRS,
-#     "poisson3d": SOLVER_PAIRS,
-#     "nonsym":    [p for p in SOLVER_PAIRS
-#                   if p[0] in {"gmres", "bicg", "bcgs", "tfqmr"} and p[1] != "icc"],
-# }
-
-# ── BASELINE PAIRS (19 combinations, MM-AutoSolver paper) ────────────────────
-# Matches baseline/mm_model.py exactly — use this for direct comparison runs.
-SOLVER_PAIRS: list[tuple[str, str]] = [
-    ("fbcgsr", "jacobi"),    # fbcgs+jacobi
+# ── Solver set A — original 19 pairs (MM-AutoSolver compatible) ───────────────
+_SOLVER_PAIRS_MAIN: list[tuple[str, str]] = [
+    ("fbcgsr", "jacobi"),    # fbcgsr+jacobi
     ("bcgsl",  "none"),      # bcgsl+none
     ("symmlq", "icc"),       # symmlq+icc      — SPD only
     ("symmlq", "jacobi"),    # symmlq+jacobi   — symmetric only
@@ -58,7 +24,7 @@ SOLVER_PAIRS: list[tuple[str, str]] = [
     ("gmres",  "gamg"),      # gmres+gamg
     ("cr",     "eisenstat"), # cr+eisenstat    — symmetric only
     ("symmlq", "sor"),       # symmlq+sor      — symmetric only
-    ("fbcgsr", "ilu"),       # fbcgs+ilu
+    ("fbcgsr", "ilu"),       # fbcgsr+ilu
     ("minres", "gamg"),      # minres+gamg     — symmetric only
     ("fcg",    "gamg"),      # fcg+gamg        — symmetric only
     ("cr",     "jacobi"),    # cr+jacobi       — symmetric only
@@ -70,16 +36,54 @@ SOLVER_PAIRS: list[tuple[str, str]] = [
     ("cgs",    "gamg"),      # cgs+gamg
     ("bcgsl",  "asm"),       # bcgsl+asm
 ]
-
-_SYM_ONLY_KSP = {"cg", "minres", "symmlq", "cr", "fcg"}
-APPLICABLE: dict[str, list[tuple[str, str]]] = {
-    "spd":       SOLVER_PAIRS,
-    "sym":       [p for p in SOLVER_PAIRS if p[0] != "cg" and p[1] != "icc"],
-    "poisson2d": SOLVER_PAIRS,
-    "poisson3d": SOLVER_PAIRS,
-    "nonsym":    [p for p in SOLVER_PAIRS
-                  if p[0] not in _SYM_ONLY_KSP and p[1] != "icc"],
+_SYM_ONLY_KSP_MAIN = {"cg", "minres", "symmlq", "cr", "fcg"}
+_APPLICABLE_MAIN: dict[str, list[tuple[str, str]]] = {
+    "spd":       _SOLVER_PAIRS_MAIN,
+    "sym":       [p for p in _SOLVER_PAIRS_MAIN if p[0] != "cg" and p[1] != "icc"],
+    "poisson2d": _SOLVER_PAIRS_MAIN,
+    "poisson3d": _SOLVER_PAIRS_MAIN,
+    "nonsym":    [p for p in _SOLVER_PAIRS_MAIN
+                  if p[0] not in _SYM_ONLY_KSP_MAIN and p[1] != "icc"],
 }
+
+# ── Solver set B — alternative 15 pairs (practical workhorse combinations) ────
+# Select with SOLVER_SET=alt
+_SOLVER_PAIRS_ALT: list[tuple[str, str]] = [
+    ("cg",     "gamg"),      # cg+gamg         — SPD only
+    ("cg",     "none"),      # cg+none          — SPD only
+    ("gmres",  "ilu"),       # gmres+ilu
+    ("gmres",  "bjacobi"),   # gmres+bjacobi
+    ("gmres",  "none"),      # gmres+none
+    ("fgmres", "ilu"),       # fgmres+ilu
+    ("fgmres", "bjacobi"),   # fgmres+bjacobi
+    ("bcgs",   "ilu"),       # bcgs+ilu
+    ("bcgs",   "jacobi"),    # bcgs+jacobi
+    ("bcgs",   "gamg"),      # bcgs+gamg
+    ("bcgs",   "none"),      # bcgs+none
+    ("tfqmr",  "ilu"),       # tfqmr+ilu
+    ("tfqmr",  "jacobi"),    # tfqmr+jacobi
+    ("lgmres", "ilu"),       # lgmres+ilu
+    ("gcr",    "ilu"),       # gcr+ilu
+]
+_SYM_ONLY_KSP_ALT = {"cg"}
+_APPLICABLE_ALT: dict[str, list[tuple[str, str]]] = {
+    "spd":       _SOLVER_PAIRS_ALT,
+    "sym":       [p for p in _SOLVER_PAIRS_ALT if p[0] != "cg"],
+    "poisson2d": _SOLVER_PAIRS_ALT,
+    "poisson3d": _SOLVER_PAIRS_ALT,
+    "nonsym":    [p for p in _SOLVER_PAIRS_ALT if p[0] != "cg"],
+}
+
+# ── Active solver set — controlled by SOLVER_SET env var ──────────────────────
+# SOLVER_SET=main  (default) → set A, 19 pairs, backward-compatible
+# SOLVER_SET=alt             → set B, 15 pairs, new experiments
+_SOLVER_SET = os.getenv("SOLVER_SET", "main").strip().lower()
+if _SOLVER_SET == "alt":
+    SOLVER_PAIRS  = _SOLVER_PAIRS_ALT
+    APPLICABLE    = _APPLICABLE_ALT
+else:
+    SOLVER_PAIRS  = _SOLVER_PAIRS_MAIN
+    APPLICABLE    = _APPLICABLE_MAIN
 
 SOLVER_NAMES: list[str]        = [f"{k}+{p}" for k, p in SOLVER_PAIRS]
 SOLVER_IDX:   dict[tuple, int] = {pair: i for i, pair in enumerate(SOLVER_PAIRS)}
