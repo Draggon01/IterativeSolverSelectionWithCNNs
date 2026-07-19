@@ -4,7 +4,7 @@
 \chapter{Methodology}\label{chapter:methodology}
 
 This chapter covers which problem the thesis tackles, how the data used within the different experiments is generated, what the actual data looks like,
-which solver-preconditioner classes are used, which features are selected and why and also describes the architecture used inside the PyTorch model.
+which solver-preconditioner classes are used, which features are selected and why, and describes the architecture used in the PyTorch model.
 
 \section{Problem Formulation}\label{sec:problem-formulation}
 
@@ -18,9 +18,9 @@ of the resulting models which allows them to be used in a complete pipeline.
 
 \section{Dataset Construction}\label{sec:dataset}
 
-The dataset is constructed by combining SuiteSparse matrices with synthetically generated matrices and saves the information needed for
+The dataset is constructed by combining SuiteSparse~\cite{davis2011university} matrices with synthetically generated matrices and saving the information needed for
 further processing into an HDF5 file.
-For the dataset a cap of winning solver-preconditioner pairs is introduced to counter a certain bias towards overrepresented pairs in the training phase.
+For the dataset a cap on winning solver-preconditioner pairs is introduced to counter a certain bias towards overrepresented pairs in the training phase.
 For the dataset used in the experiments this cap was 600, while the minimum of wins for a pair was 250.
 
 \subsection{Synthetic Data Generation}\label{subsec:synthetic-datagen}
@@ -28,11 +28,11 @@ For the dataset used in the experiments this cap was 600, while the minimum of w
 The synthetic data generation evolved while testing and generating datasets, in the end 37 different generator buckets
 were defined in the process.
 These focus on generating matrices with structural properties for which specific solver-preconditioner pairs are theoretically expected to perform well;
-the actual winner is always determined empirically by benchmarking~\cite{saad2003iterative}.
+the actual winner is always determined empirically by benchmarking.
 Table~\ref{tab:generator-buckets} lists all generator functions grouped by structural property.
 In practice, however, this worked only partially, as even though some solver wins increased, in most cases the intended target solvers were still
 outperformed by certain more dominant solver-preconditioner pairs.
-A more systematic bucket design falls outside the scope of this thesis and these downsides are therefore accepted as a limitation.
+A more systematic bucket design falls outside the scope of this thesis and these downsides are therefore accepted as limitations.
 For generators where only the size changes which solver-preconditioner pair has the highest chance of winning, different buckets
 that generate specific sizes with a certain generator function are introduced.
 If these generators produce large matrices, they have a lower chance to be used as they
@@ -68,7 +68,7 @@ In the current state, the generators generate matrices with $n$ ranging from 100
     \texttt{sym\_banded\_mild}         & 800–18\,000     & \texttt{symmlq+sor} \\
     \texttt{sym\_indef\_deep}          & 200–12\,000     & \texttt{symmlq+jacobi} \\
     \midrule
-    \multicolumn{3}{@{}l@{}}{\textit{Nonsymmetric}} \\[2pt]
+    \multicolumn{3}{@{}l@{}}{\textit{Non-symmetric}} \\[2pt]
     \texttt{random\_nonsymmetric}      & 100–20\,000     & \texttt{fbcgsr+jacobi, bcgsl+none} \\
     \texttt{convection\_diffusion\_2d} & 100–63\,000     & \texttt{fbcgsr+ilu, cgs+gamg, fgmres+gamg} \\
     \texttt{convection\_diffusion\_3d} & 1\,000–43\,000  & \texttt{fbcgsr+ilu, bcgsl+asm, cgs+gamg} \\
@@ -81,18 +81,18 @@ In the current state, the generators generate matrices with $n$ ranging from 100
 Regarding the benchmarking, all solver pairs are run against a matrix after its generation.
 A specific timeout is set, after which a solver pair is marked as non-converging, also if the maximum number of iterations is exceeded
 the pair is marked as non-converging.
-Some solvers do not work, or only work, on symmetric matrices, therefore they are not run on these specific ones.
-A pair is valid and gets saved with its spent time if the result is within a certain tolerance.
+Some solvers do not work, or only work, on symmetric matrices; they are therefore not run on these specific ones.
+A pair is valid and gets saved with its solve time if the result is within a certain tolerance.
 The label a matrix gets in the end is only the fastest solver-preconditioner pair, the so-called winner.
 
-For each matrix the matrix itself, the features and all the pairs with solving time or an entry for non-convergence are stored.
+For each matrix, the matrix itself, the features, and all the pairs with solve time or an entry for non-convergence are stored.
 
 \subsection{SuiteSparse Benchmark Matrices}\label{subsec:SuiteSparse}
 
 The SuiteSparse dataset generation differs only in the storage of the matrices.
-Since they are downloaded and stored as .mtx files, the storage of the full matrices in the HDF5 dataset file does not make sense
+Since they are downloaded and stored as \texttt{.mtx} files, the storage of the full matrices in the HDF5 dataset file does not make sense
 and is therefore omitted to save space.
-A separate folder for the mtx files is used as a cache which reduces storage requirements while keeping the dataset portable.
+A separate folder for the \texttt{.mtx} files is used as a cache, which reduces storage requirements while keeping the dataset portable.
 
 \subsection{Dataset Statistics}\label{subsec:dataset-stats}
 
@@ -235,7 +235,7 @@ During experimentation, six additional features were introduced to address speci
 expanding the feature vector to 20 entries (Table~\ref{tab:features-6}).
 Features 14 and 15 improve the separation between CG-type and GMRES-type solvers by encoding the sign structure of off-diagonal
 entries and the fraction of positive diagonal entries, both of which correlate with matrix definiteness~\cite{saad2003iterative}.
-Feature 16 distinguishes structurally symmetric from truly asymmetric matrices, helping to separate \texttt{gmres} from \texttt{fgmres} predictions.
+Feature 16 distinguishes structurally symmetric from truly asymmetric matrices, helping to separate \texttt{gmres+gamg} from \texttt{fgmres+gamg} predictions.
 Features 17 and 19 target ILU preconditioner stability: the minimum per-row diagonal dominance detects the single worst-case
 row for ILU breakdown, while the variance of dominance ratios captures patchy instability that the mean alone misses.
 Feature 18 encodes whether the non-zero structure is grid-like or unstructured, which is a strong predictor of GAMG suitability~\cite{stuben2001review}.
@@ -304,10 +304,10 @@ RCM log-density modes at 128\,px.
 
 The model consists of two sub-models combined into one prediction model.
 The two branches are an MLP that processes previously defined matrix features, and a CNN that processes pre-rendered images.
-Outputs are then concatenated and passed to a shared classification head which produces the probability distribution over the 19 solver-preconditioner pairs.
+Outputs are then concatenated and passed to a shared classification head, which produces the probability distribution over the 19 solver-preconditioner pairs.
 Concatenation was chosen over element-wise addition as it is the more common fusion practice~\cite{baltruvsaitis2018multimodal} and gives the classification head greater freedom in weighting contributions from each branch independently.
-Also two different model sizes are introduced to evaluate the effect of capacity.
-The CNN branch supports a single image channel and a dual one where 2 different images can be used as input.
+Two different model sizes are introduced to evaluate the effect of model capacity.
+The CNN branch supports a single image channel and a dual-channel variant that accepts two different images as input.
 
 \subsection{CNN Branch}\label{subsec:cnn-branch}
 
@@ -316,12 +316,12 @@ where  $C = 1$ for single-channel and $C = 2$ for dual-channel experiments,
 and $H = W \in \{64, 128\}$ depending on the image resolution.
 
 The branch begins with an initial convolution block, a $3 \times 3$ convolution with
-$c$ output channels, followed by batch normalisation and ReLU activation, and a
+$c$ output channels, followed by batch normalisation~\cite{ioffe2015batch} and ReLU activation, and a
 $2 \times 2$ max-pooling layer that halves the spatial dimensions.
 This is then followed by two residual blocks (three for the large model variant),
 where each one is separated by a $2 \times 2$ max-pooling step.
 Each residual block consists of two $3 \times 3$ convolutions with batch normalisation
-and a skip connection: $\mathbf{y} = \text{ReLU}(\mathbf{x} + \text{block}(\mathbf{x}))$.
+and a skip connection~\cite{he2016deep}: $\mathbf{y} = \text{ReLU}(\mathbf{x} + \text{block}(\mathbf{x}))$.
 
 After the convolutional stack, an adaptive average pooling layer reduces the spatial
 dimensions to a fixed $4 \times 4$ output regardless of input resolution.
@@ -349,8 +349,7 @@ It consists of two fully connected layers with ReLU activations:
 \]
 The hidden dimension is $d_{\text{MLP}} = 64$ (small model) or $d_{\text{MLP}} = 128$
 (large model).
-No dropout is applied in this branch.
-The features are already low-dimensional and the risk of overfitting here is low.
+No dropout is applied in this branch, as the features are already low-dimensional and the risk of overfitting is low.
 
 \subsection{Fusion and Classification Head}\label{subsec:fusion}
 
@@ -359,7 +358,7 @@ The outputs of the two branches are concatenated:
   \mathbf{z} = [\mathbf{c}_{\text{CNN}};\, \mathbf{h}_{\text{MLP}}]
   \in \mathbb{R}^{d_{\text{CNN}} + d_{\text{MLP}}}
 \]
-and passed through a two-layer classification head with ReLU activation and dropout,
+and passed through a two-layer classification head with ReLU activation and dropout~\cite{srivastava2014dropout},
 producing logits over the 19 solver-preconditioner classes:
 \[
   \hat{\mathbf{y}} = W_{\text{out}}\,\text{ReLU}(W_{\text{head}}\,\mathbf{z} + b_{\text{head}}) + b_{\text{out}}
@@ -379,7 +378,7 @@ feeds into the head, serving as the \texttt{nocnn} feature-only baseline.
 
 All models are trained with the AdamW optimiser~\cite{loshchilov2019decoupled}
 at a learning rate of $3 \times 10^{-4}$ and weight decay of $10^{-3}$.
-A cosine annealing schedule reduces the learning rate to zero over the full
+A cosine annealing schedule~\cite{loshchilov2017sgdr} reduces the learning rate to zero over the full
 training run of 256 epochs.
 Batches of size 256, or in the dual-channel case 64 due to memory restrictions, are drawn
 from the training split with shuffling.
@@ -395,4 +394,4 @@ This directly penalises probability mass assigned to diverging solvers and is ex
 
 The dataset is split into 90\% training and 10\% validation data using a stratified split
 with seed 42, ensuring each class is represented proportionally in both splits.
-Checkpoints are saved every 5 epochs and the final epoch checkpoint is used for evaluation.
+Checkpoints are saved every 5 epochs and the checkpoint from the final epoch is used for evaluation.

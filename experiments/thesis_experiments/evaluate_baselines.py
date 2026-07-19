@@ -43,6 +43,7 @@ t0 = time.perf_counter()
 with h5py.File(H5_PATH, "r") as f:
     features = f["features"][:]
     labels   = f["labels"][:]
+    runtimes = f["runtimes"][:]   # (N, N_SOLVERS) float32, NaN = diverged
 print(f"[load] Done in {time.perf_counter() - t0:.1f}s  "
       f"— {len(labels)} samples, {features.shape[1]} features", flush=True)
 
@@ -67,6 +68,7 @@ val_idx   = np.array(val_idx)
 
 X_train, y_train = features[train_idx], labels[train_idx]
 X_val,   y_val   = features[val_idx],   labels[val_idx]
+rt_val           = runtimes[val_idx]    # (n_val, N_SOLVERS)
 
 print(f"[split] Train: {len(train_idx)}   Val: {len(val_idx)}", flush=True)
 
@@ -100,14 +102,44 @@ def metrics(y_true, y_pred):
     return acc, mp, mr, f1
 
 
-def print_result(name: str, y_true, y_pred, elapsed: float) -> tuple:
+def quality_metrics(y_pred, rt):
+    """Top-k accuracy, failure rate, mean runtime ratio from runtimes array."""
+    n = len(y_pred)
+    # rank solvers by runtime for each sample (NaN = diverged → sorted to end)
+    rt_nan = np.where(np.isfinite(rt), rt, np.inf)
+    ranked = np.argsort(rt_nan, axis=1)   # (n, N_SOLVERS), best first
+
+    top2 = np.mean([y_pred[i] in ranked[i, :2] for i in range(n)]) * 100
+    top3 = np.mean([y_pred[i] in ranked[i, :3] for i in range(n)]) * 100
+
+    # fail: predicted solver did not converge
+    fail = np.mean([not np.isfinite(rt[i, y_pred[i]]) for i in range(n)]) * 100
+
+    # mean runtime ratio: predicted / best (only where both are finite)
+    ratios = []
+    for i in range(n):
+        best_time = rt_nan[i, ranked[i, 0]]
+        pred_time = rt[i, y_pred[i]]
+        if np.isfinite(pred_time) and np.isfinite(best_time) and best_time > 0:
+            ratios.append(pred_time / best_time)
+    mrt = float(np.mean(ratios)) if ratios else float("nan")
+
+    return top2, top3, fail, mrt
+
+
+def print_result(name: str, y_true, y_pred, rt, elapsed: float) -> tuple:
     acc, mp, mr, f1 = metrics(y_true, y_pred)
+    top2, top3, fail, mrt = quality_metrics(y_pred, rt)
     print(f"  Accuracy (Acc)  : {acc:>6.2f}%")
     print(f"  Macro Precision : {mp:>6.2f}%")
     print(f"  Macro Recall    : {mr:>6.2f}%")
     print(f"  Macro F1        : {f1:>6.2f}%")
+    print(f"  Top-2 Accuracy  : {top2:>6.2f}%")
+    print(f"  Top-3 Accuracy  : {top3:>6.2f}%")
+    print(f"  Failure rate    : {fail:>6.2f}%")
+    print(f"  Mean runtime ratio: {mrt:.3f}x")
     print(f"  Time            : {elapsed:.2f}s")
-    return acc, mp, mr, f1
+    return acc, mp, mr, f1, top2, top3, fail, mrt
 
 
 def per_class_breakdown(y_true, y_pred, title: str):
@@ -142,7 +174,7 @@ y_majority    = np.full_like(y_val, majority_cls)
 elapsed       = time.perf_counter() - t0
 
 print(f"\n── Majority Class  (always predicts: {SOLVER_NAMES[majority_cls]}) ──")
-results["majority"] = print_result("majority", y_val, y_majority, elapsed)
+results["majority"] = print_result("majority", y_val, y_majority, rt_val, elapsed)
 per_class_breakdown(y_val, y_majority, "majority")
 
 # ── KNN baselines ─────────────────────────────────────────────────────────────
@@ -166,7 +198,7 @@ for k in (1, 5):
     print(f"  Train vectors stored : {len(X_train_s)}  (must be scanned per query)")
     print(f"  Fit time (store data): {t_fit*1000:.1f}ms")
     print(f"  Predict time total   : {t_pred*1000:.1f}ms  ({per_query_us:.1f}µs/query)")
-    results[f"{k}-nn"] = print_result(f"{k}-nn", y_val, y_pred, elapsed)
+    results[f"{k}-nn"] = print_result(f"{k}-nn", y_val, y_pred, rt_val, elapsed)
     per_class_breakdown(y_val, y_pred, f"{k}-nn")
 
 # ── per-class classification_report for 5-NN ─────────────────────────────────
@@ -186,8 +218,8 @@ print(report)
 
 # ── summary table (matches append_results format in run_experiments.sh) ───────
 
-print("\nexperiment           Acc%    MP%     MR%     F1%")
-print("----------------------------------------------------")
-for name, (acc, mp, mr, f1) in results.items():
-    print(f"{name:<20} {acc:>7.2f} {mp:>7.2f} {mr:>7.2f} {f1:>7.2f}")
+print("\nexperiment           Acc%    MP%     MR%     F1%   Top-2%  Top-3%  Fail%   MRT×")
+print("-" * 83)
+for name, (acc, mp, mr, f1, top2, top3, fail, mrt) in results.items():
+    print(f"{name:<20} {acc:>7.2f} {mp:>7.2f} {mr:>7.2f} {f1:>7.2f} {top2:>7.2f} {top3:>7.2f} {fail:>7.2f} {mrt:>7.3f}")
 print()

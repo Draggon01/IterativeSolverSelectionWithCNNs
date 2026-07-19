@@ -9,7 +9,7 @@ Detailed results and metric comparisons are evaluated in \autoref{chapter:result
 
 \section{Experimental Infrastructure}\label{sec:infra}
 
-To ensure reproducibility the whole pipeline runs within a Docker environment.
+To ensure reproducibility, the whole pipeline runs within a Docker environment.
 The pipeline includes distinct scripts for data generation, model training and model evaluation.
 The training data is stored in HDF5 file format to enable fast access, and is shared across experiments unless stated otherwise.
 Its generation was performed on an AMD Ryzen AI 7 350 / Radeon 860 and an AMD Ryzen 5 1600 Six-Core, described in more detail in \autoref{sec:dataset} %todo get connection to my home machine back and fill the actual name.
@@ -37,10 +37,10 @@ Macro averaging is used rather than weighted averaging to treat all solver class
 
 \subsection{Solver-Quality Metrics}\label{subsec:solver-quality-metrics}
 
-If a predicted solver-preconditioner pair is not the best result but comes in as a close second it won't be recognised
-for the accuracy which may not be ideal when targeting the implementation of the models within a specific pipeline.
+If a predicted solver-preconditioner pair is not the best result but comes in as a close second, it will not be recognised
+for the accuracy, which may not be ideal when targeting the implementation of the models within a specific pipeline.
 For this case two separate metrics are introduced, which also give positive feedback if the chosen solver-preconditioner
-pair is only marginally slower, just the second-best choice or might be extremely failure-resistant.
+pair is only marginally slower, just the second-best choice, or is extremely failure-resistant.
 
 \begin{itemize}
     \item \textbf{Top-k accuracy (k=2,3)} - probability the predicted solver is within the top-k predictions. Top-3 accuracy is used as the primary quality metric in the results discussion, with near-optimal values available in the experiment summary files.
@@ -54,7 +54,7 @@ pair is only marginally slower, just the second-best choice or might be extremel
 Other metrics that need to be introduced regard the time cost within data generation,
 model training and per-matrix feature and image generation.
 Therefore, training time and inference costs are also logged for each experiment and can be seen in corresponding summary files.
-For the data generation no specific time cost was logged, unfortunately.
+For the data generation, no specific time cost was logged.
 
 \subsection{Non-Learning Baselines}\label{subsec:baselines}
 
@@ -121,8 +121,8 @@ with sizes ranging from 100 to 84{,}617 rows and a median of 1{,}485.
   \label{fig:replication-sizes}
 \end{figure}
 
-With this dataset the experiment was set up with a $128 \times 128$ pixel density image for the CNN branch,
-following the paper, their proposed 17 features are also calculated and used.
+Following the paper, the experiment uses a $128 \times 128$ pixel density image for the CNN branch
+and the 17 features proposed in the original work.
 The re-implementation uses the original MM-AutoSolver architecture, two convolutional layers with Tanh activation
 and element-wise CNN/MLP fusion, rather than the thesis model~(\autoref{sec:architecture}).
 For the training, a learning rate of $10^{-3}$, $256$ training epochs and a batch size of $512$ are set.
@@ -130,7 +130,7 @@ For the training, a learning rate of $10^{-3}$, $256$ training epochs and a batc
 \section{Single-Channel Experiments}\label{sec:single-channel-exp}
 
 This section describes the different experiments done with a single CNN channel active.
-They differ by their feature vector, the activation of the non-convergence penalty and model size.
+They differ in their feature vector, the activation of the non-convergence penalty and model size.
 
 \subsection{Campaign 1: Single-Channel Baseline}\label{subsec:campaign1}
 
@@ -141,8 +141,8 @@ Convergence penalty is deactivated and the small model~(\autoref{sec:architectur
 \subsection{Campaign 2: Extended Features and Convergence Penalty}\label{subsec:campaign2}
 
 Campaign 2 addresses two weaknesses observed in Campaign 1.
-Some solvers had especially low accuracy and F1 values, therefore an additional 6 features described in \autoref{tab:features-6} were introduced.
-To reduce high failure rates observed in certain classes the convergence penalty~(\autoref{sec:training}) with $\lambda = 1.0$ is used.
+Some solvers had especially low accuracy and F1 values; an additional 6 features described in \autoref{tab:features-6} were therefore introduced.
+To reduce high failure rates observed in certain classes, the convergence penalty~(\autoref{sec:training}) with $\lambda = 1.0$ is used.
 The whole experiment is run on the large model~(\autoref{sec:architecture}) and uses the same image modes as Campaign 1 but only an image size of 64\,px.
 
 \section{Dual-Channel Experiments}\label{sec:dual-channel-exp}
@@ -161,15 +161,15 @@ The file stores one dataset per image mode under the key \texttt{images\_<mode>}
 
 The experiment setup is similar to the one in Campaign 1, except this time a different set of image modes and the large model~(\autoref{sec:architecture}) are used and
 the image sizes are fixed at 64\,px.
-The top 6 downsampling methods by F1 value are selected from Campaign~1~(\autoref{subsec:campaign1}), as well as the sign mode.
+Six high-performing image modes are selected from Campaign~1~(\autoref{subsec:campaign1}) based on F1 score, together with the sign mode.
 These 7 methods are then combined into all their pairwise combinations and tested.
-This results in 21 different image mode combinations that can be seen in Table~\ref{tab:results-dual-14}.
+This results in 21 different image mode combinations that can be seen in Table~\ref{tab:results-campaign3}.
 
 \subsection{Campaign 4: Dual-Channel with Extended Features}\label{subsec:campaign4}
 
 This campaign combines the dual-channel approach with the improvements introduced in Campaign~2~(\autoref{subsec:campaign2}) with convergence penalty $\lambda = 1.0$, the 20-feature set and the large model~(\autoref{sec:architecture}).
 The image modes are selected based on F1 performance in Campaign 2, and all selected mode pairs are run on both 64\,px and 128\,px.
-This results in 15 different image mode combinations each run at two image sizes, therefore 30 different models.
+This results in 15 different image mode combinations each run at two image sizes, giving 30 models in total.
 
 \section{Ensemble Evaluation}\label{sec:ensemble}
 

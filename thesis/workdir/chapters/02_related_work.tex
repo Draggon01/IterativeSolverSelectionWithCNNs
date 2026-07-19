@@ -1,0 +1,113 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Related Work}\label{chapter:related-work}
+
+\section{Iterative Solvers and Preconditioners}\label{sec:solvers-background}
+
+Iterative methods for sparse linear systems construct a sequence of approximations to the
+solution of $Ax = b$ by building a Krylov subspace
+$\mathcal{K}_k(A, r_0) = \operatorname{span}\{r_0,\, Ar_0,\, \ldots,\, A^{k-1}r_0\}$
+from the initial residual $r_0$.
+The Conjugate Gradient method (CG) is the standard choice for symmetric positive definite
+systems, while methods such as GMRES, FGMRES, DGMRES, BiCGStab, and BiCGStabl handle
+non-symmetric or indefinite problems.
+Further specialisations include MINRES for symmetric indefinite systems, as well as CR and
+CGS for specific structural properties.
+A comprehensive treatment of Krylov subspace methods is given by Saad~\cite{saad2003iterative}.
+
+Preconditioners transform the linear system to improve convergence by approximating
+$A^{-1}$ at low computational cost.
+Simple diagonal methods such as Jacobi, SOR, and the Eisenstat variant are inexpensive but
+effective for diagonally dominant systems.
+Incomplete LU factorisation (ILU), introduced by Meijerink and Van der
+Vorst~\cite{meijerink1977iterative}, approximates the LU decomposition while discarding
+small fill-in entries, offering a stronger approximation at moderate cost.
+Block variants such as block Jacobi and additive Schwarz (ASM) decompose the system into
+local subproblems that can be solved independently or in parallel.
+Algebraic multigrid (AMG and its PETSc implementation GAMG) constructs a hierarchy of
+coarser representations and achieves near-optimal convergence for a wide class of
+problems~\cite{stuben2001review}.
+Because no single solver-preconditioner pair dominates across all matrix types, selecting
+the right combination requires problem-specific knowledge, which motivates automated
+selection.
+
+\section{Automated Solver Selection}\label{sec:automated-selection}
+
+Automating the choice of solver and preconditioner has been studied from several angles.
+Rule-based expert systems encode practitioner knowledge about which configurations suit
+which matrix properties, but are limited to known problem classes and require significant
+manual effort to maintain.
+Classical machine learning approaches overcome this by training classifiers such as support
+vector machines or random forests on hand-crafted matrix statistics, learning the mapping
+from matrix properties to optimal solver configurations directly from benchmark data.
+
+More recent work extends this idea to richer input representations.
+MM-AutoSolver~\cite{xiong2025mmautosolver} supplements scalar matrix features with a CNN
+branch processing a visual rendering of the sparsity pattern, improving accuracy over
+feature-only baselines.
+Weng et al.~\cite{weng2026embedding} take a different direction with an embedding-based
+framework that learns solver-problem relationships directly from observed performance data,
+achieving substantial improvements over classical feature-based models across a broad set
+of PETSc solver-preconditioner configurations.
+
+\section{MM-AutoSolver}\label{sec:mm-autosolver}
+
+MM-AutoSolver~\cite{xiong2025mmautosolver} is the primary baseline and architectural
+reference for this thesis.
+The model combines two input streams: a scalar feature branch processing 17 hand-crafted
+matrix statistics through an MLP, and a CNN branch operating on a $128 \times 128$ pixel
+density image of the sparse matrix.
+The two branches are fused via element-wise addition before a shared classification head
+predicts one of 19 fixed solver-preconditioner pairs from PETSc~\cite{dalcin2011parallel}.
+The CNN uses two convolutional layers with Tanh activations and $3 \times 3$ and
+$5 \times 5$ kernels respectively, trained with Adam ($\text{lr} = 10^{-3}$,
+256 epochs, batch size 512).
+On a dataset of 11{,}623 matrices from the SuiteSparse collection~\cite{davis2011university} the model achieves Acc\,=\,78.54\,\%,
+MP\,=\,63.41\,\%, MR\,=\,62.81\,\%, and F1\,=\,62.53\,\%.
+This thesis independently replicates MM-AutoSolver on a custom dataset~(\autoref{sec:mm-replication})
+and extends the approach by systematically evaluating 14 different image encoding strategies,
+dual-channel CNN inputs, and ensemble methods.
+
+\section{Embedding-based Solver Performance Prediction}\label{sec:supervisor-framework}
+
+Weng et al.~\cite{weng2026embedding} present an embedding-based framework for linear solver
+performance prediction evaluated across 101 PETSc solver-preconditioner configurations on
+a broad set of SuiteSparse benchmark matrices.
+Rather than engineering features by hand, the framework learns solver-problem relationships
+directly from observed performance data and projects unseen problems into a learned
+embedding space using inexpensive numerical features, achieving a 37\,\% reduction in mean
+average percentage error and a 17\,\% improvement in top-prediction accuracy over classical
+feature-based models.
+This thesis targets a subset of 19 of the 101 solver-preconditioner configurations from
+this framework as classification labels, with the goal of training a CNN-based model that
+could eventually serve as a lightweight inference module within the broader
+evaluation pipeline.
+
+\section{Image Representations of Sparse Matrices}\label{sec:image-representations}
+
+Representing a sparse matrix as a two-dimensional image allows a CNN to exploit spatial
+and structural patterns that scalar statistics cannot capture.
+The simplest encoding is a binary sparsity pattern, marking each non-zero entry as a pixel.
+Denser representations encode the value magnitude or local non-zero density per pixel cell,
+optionally on a logarithmic scale to compress dynamic range; signed variants additionally
+preserve entry signs.
+Before rendering, the Reverse Cuthill--McKee (RCM) reordering~\cite{cuthill1969reducing}
+reduces the matrix bandwidth by permuting rows and columns, concentrating non-zero entries
+closer to the diagonal and making structural patterns more visually compact.
+MM-AutoSolver~\cite{xiong2025mmautosolver} uses a single density encoding at
+$128 \times 128$ pixels; this thesis evaluates 14 distinct encoding strategies at two
+resolutions to identify the most informative representation for solver selection.
+
+\section{Convolutional Neural Networks and Multimodal Learning}\label{sec:cnn-background}
+
+Convolutional neural networks learn hierarchical spatial features from image data and are
+well established for image classification tasks.
+In this thesis, the CNN serves as one branch of a multimodal architecture that combines
+image and scalar inputs.
+Multimodal machine learning, as surveyed by Baltru\v{s}aitis et
+al.~\cite{baltruvsaitis2018multimodal}, combines complementary signals from multiple input
+modalities to improve prediction over any single modality alone.
+The dual-stream design used here follows this paradigm: the CNN branch captures spatial
+matrix structure while the MLP branch processes scalar statistics, and the two sources of
+information are fused through concatenation before a shared classification head.

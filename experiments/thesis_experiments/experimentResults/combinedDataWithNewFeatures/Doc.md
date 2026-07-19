@@ -174,6 +174,96 @@ Sorted by F1% descending. Best combo: **magnitude+log_density** (65.60% F1), bes
 
 **Suggested ensemble:** `magnitude__rcm_log_density_128` + `magnitude__log_density_128` + `magnitude__rcm_signed_magnitude_128` — complementary second channels, expected to push past the old 67.39% ensemble.
 
+## Ensemble run command (Campaign 4)
+
+Top 3 by F1 at 128px, with complementary second channels. Add `rcm_magnitude__log_density_128`
+as a 4th member to diversify the first channel:
+
+```bash
+rm data/multimode/dataset.h5 && \
+IMAGE_SIZE=128 \
+EXPERIMENTS="magnitude__rcm_log_density_128 magnitude__log_density_128 magnitude__rcm_signed_magnitude_128 rcm_magnitude__log_density_128" \
+docker compose run --rm ensemble_evaluate
+```
+
+Run from `experiments/thesis_experiments/`. The `rm` is required — without it the script
+sees all modes already present and skips re-rendering, even if `IMAGE_SIZE` changed.
+`IMAGE_SIZE=128` must be set explicitly; the default is 64 which silently produces wrong results
+(AdaptiveAvgPool handles arbitrary input sizes so no error is raised).
+
+## Ensemble results (Campaign 4)
+
+| Members | Acc% | MP% | MR% | F1% | Top-2% | Top-3% | Fail% | MRT× | ms/sample |
+|---------|------|-----|-----|-----|--------|--------|-------|------|-----------|
+| magnitude__rcm_log_density_128 + magnitude__log_density_128 + magnitude__rcm_signed_magnitude_128 + rcm_magnitude__log_density_128 | 66.98 | 69.78 | 69.20 | 66.51 | 87.20 | 94.53 | 3.72 | 1.216 | 50.9 |
+| magnitude__rcm_log_density_128 + magnitude__rcm_signed_magnitude_128 + rcm_magnitude__symmetry_128 + symmetry__log_density_128 | 66.25 | 68.30 | 68.47 | 65.37 | 87.51 | 94.84 | 3.41 | 3.033 | 50.4 |
+| magnitude__log_density_128 + magnitude__rcm_log_density_128 + rcm_magnitude__rcm_signed_magnitude_128 + symmetry__log_density_128 | 67.29 | 70.37 | 69.48 | 66.77 | 87.41 | 94.94 | 3.92 | 1.043 | 46.5 |
+
+Gain over best individual (magnitude__rcm_log_density_128, ensemble 1): +0.42pp Acc, +0.98pp F1.
+
+Note: Campaign 3 ensemble (67.39% Acc, 66.37% F1, ~12ms) still leads in accuracy despite
+using only 14 features and 64px. Campaign 4 ensemble leads in MP (69.78% vs 69.47%),
+MR (69.20% vs 69.58%), and F1 (66.51% vs 66.37%) but at 4× the inference cost (50.9ms vs 12ms).
+
+Notable per-class results:
+- cr+eisenstat: 89.1% F1 (up from 85.5% in Campaign 3) — convergence penalty helps
+- symmlq+sor: 84.6% F1 (up from 77.8%) — big improvement
+- cg+ilu: 49.1% F1, 31.5% Fail% — worse than Campaign 3 (56.9% F1, 11.9% Fail%)
+- gmres+gamg: 20.6% F1 — unchanged, still the hardest class
+
+## Diverse ensemble run command (Campaign 4, attempt 2)
+
+3 different first channels (magnitude × 2, rcm_magnitude, symmetry), all 4 second channels different:
+
+```bash
+rm data/multimode/dataset.h5 && \
+IMAGE_SIZE=128 \
+EXPERIMENTS="magnitude__rcm_log_density_128 magnitude__rcm_signed_magnitude_128 rcm_magnitude__symmetry_128 symmetry__log_density_128" \
+docker compose run --rm ensemble_evaluate
+```
+
+Note: `rm` required — multimode HDF5 needs `images_symmetry` which wasn't rendered before.
+
+## Diverse ensemble run command (Campaign 4, attempt 3)
+
+2 magnitude + 1 rcm_magnitude + 1 symmetry, all different second channels:
+
+```bash
+rm data/multimode/dataset.h5 && \
+IMAGE_SIZE=128 \
+EXPERIMENTS="magnitude__log_density_128 magnitude__rcm_log_density_128 rcm_magnitude__rcm_signed_magnitude_128 symmetry__log_density_128" \
+docker compose run --rm ensemble_evaluate
+```
+
+## 5-model ensemble run command (Campaign 4, attempt 4)
+
+Top 3 individual models by F1 + best non-magnitude first channel (rcm_magnitude__symmetry) +
+best symmetry-first model (symmetry__log_density). All 6 modes already in multimode HDF5
+from attempt 3 — no `rm` needed (ensemble_evaluate.py auto-detects size mismatch).
+
+Members:
+- magnitude__log_density_128        (65.60% F1, best individual)
+- magnitude__rcm_log_density_128    (65.53% F1, best individual Acc: 66.56%)
+- magnitude__rcm_signed_magnitude_128 (65.16% F1, #3 individual)
+- rcm_magnitude__symmetry_128       (64.23% F1, best non-magnitude first channel)
+- symmetry__log_density_128         (64.10% F1, diverse first channel)
+
+First channels: magnitude×3, rcm_magnitude×1, symmetry×1
+Second channels: log_density×2, rcm_log_density, rcm_signed_magnitude, symmetry
+
+```bash
+IMAGE_SIZE=128 \
+EXPERIMENTS="magnitude__log_density_128 magnitude__rcm_log_density_128 magnitude__rcm_signed_magnitude_128 rcm_magnitude__symmetry_128 symmetry__log_density_128" \
+docker compose run --rm ensemble_evaluate
+```
+
+Results: **worse than attempt 3** in all metrics — weaker members dilute the strong magnitude trio.
+Attempt 3 remains the best Campaign 4 ensemble. Not used in the thesis.
+
+| Members | Acc% | MP% | MR% | F1% | Top-2% | Top-3% | Fail% | MRT× | ms/sample |
+|---------|------|-----|-----|-----|--------|--------|-------|------|-----------|
+| magnitude__log_density + magnitude__rcm_log_density + magnitude__rcm_signed_magnitude + rcm_magnitude__symmetry + symmetry__log_density (128px, 5 models) | 66.46 | 68.82 | 68.75 | 65.92 | 87.51 | 95.15 | 3.92 | 1.206 | 59.5 |
+
 ## Reference: previous best results (14 features, no penalty, small model, 64px)
 
 | Mode                  | Acc%  | F1%   |

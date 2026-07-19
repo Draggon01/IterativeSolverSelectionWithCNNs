@@ -4,7 +4,7 @@
 \chapter{Results and Evaluation}\label{chapter:results}
 
 This chapter presents and interprets the quantitative outcomes of the experiments described in \autoref{chapter:experiments}.
-Each section addresses one research dimension, image mode choice, feature engineering, single- vs.\ dual-channel, image resolution, and ensembling,
+Each section addresses one research dimension: image mode choice, feature engineering, single- vs.\ dual-channel, image resolution, and ensembling,
 before placing the best results in context with the MM-AutoSolver baseline.
 
 \section{Overview of All Experimental Results}\label{sec:results-overview}
@@ -18,7 +18,7 @@ Bold marks the best value in each column; for Fail\% and MRT$\times$, lower is b
 \begin{table}[H]
   \centering
   \caption{Campaign~1 — Single-channel: 14 features, no convergence penalty, small model.}
-  \label{tab:results-single-14}
+  \label{tab:results-campaign1}
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{lrrrrrrrr}
     \toprule
@@ -62,51 +62,11 @@ Bold marks the best value in each column; for Fail\% and MRT$\times$, lower is b
   }
 \end{table}
 
-Across the first two Campaigns where single image modes were used, the magnitude\_64 downsampling is the strongest single predictor.
-It consistently outperforms its 13 competitors, winning the first campaign with a 64.19\% accuracy and a 63.42\% F1 value and the
-second one with a 64.29\% accuracy and a 63.38\% F1 value.
-
-While in both Campaigns the magnitude\_64 downsampling approach yields better results than their best baseline approaches there are always some
-configurations where nearly no improvement or even worse values can be observed.
-In Campaign 1 the binary\_64 model for example has a lower accuracy and only a F1 value 0.03pp higher than the 1-NN baseline, showing that
-the binary downsampling doesn't store that much valuable information when cropped to small images.
-In Campaign 2 the binary\_64 model also does not show better results, but within this campaign the density\_64 approach was more notable as it was the only one
-that dropped by over 8\%.
-While investigating it showed that it stopped predicting the solver-preconditioner pairs \texttt{minres+gamg} and \texttt{fcg+gamg} which resulted in a failure rate of 0\%
-meaning that the non-convergence penalty works against the model in this case, thus not working as intended in this case.
-
-As only a certain amount of downsampling methods made sense, to introduce additional variations, RCM reordering was applied to selected modes.
-This had no significant impact in single-channel model results as values in most cases stayed within $\pm 0.6$\% of the original values.
-
-The worst-performing modes consist of those that only regard structural features like binary and diagonal
-and do not incorporate any magnitude information, confirming that entry values carry essential information for solver selection.
-The six highest-ranking modes by F1 - \texttt{magnitude}, \texttt{rcm\_signed\_magnitude}, \texttt{rcm\_magnitude},
-\texttt{signed\_magnitude}, \texttt{symmetry}, and \texttt{density} (128\,px) - are therefore carried forward as the basis
-for the dual-channel experiments in Campaign~3~(\autoref{subsec:campaign3}).
-
-%todo move to conclusion probably
-The results also show that if a model with exceptional speed needs to be selected, in most cases it won't be the model with the
-highest accuracy or the best F1 value.
-In Campaign~1 for example, \texttt{magnitude\_64} achieves the best accuracy and F1, but \texttt{signed\_magnitude\_64} achieves a lower MRT$\times$ of $1.069$ versus $1.259$, making it a better choice when runtime ratio is the priority.
-
-
-
-%
-%as these models always are beaten by other models when it comes to the failure rate and MRT which
-%are way more interesting metrics for this use-case.
-%
-%The results also show that models with the best accuracy of the highest F1, might overall not be the most useful model implicitly,
-%as in the first two Campaigns these models were always beaten by Failure Rate and MRT by other models.
-%This means, if the model should focus on time improvement, it might not need the best accuracy, if the Failure Rate and MRT is better than its
-%competitors it still would be a better fit for a task like that.
-
-\section{Impact of Feature Engineering and Convergence Penalty}\label{sec:results-features}
-
 % ── Campaign 2: Single-channel, 20 features, convergence penalty λ=1.0 ────────
 \begin{table}[H]
   \centering
   \caption{Campaign~2 — Single-channel: 20 features, convergence penalty $\lambda=1.0$, large model, 64\,px.}
-  \label{tab:results-single-20}
+  \label{tab:results-campaign2}
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{lrrrrrrrr}
     \toprule
@@ -136,6 +96,38 @@ In Campaign~1 for example, \texttt{magnitude\_64} achieves the best accuracy and
   }
 \end{table}
 
+Across the first two Campaigns where single image modes were used, the magnitude\_64 downsampling is the strongest single predictor.
+It consistently outperforms its 13 competitors, winning Campaign~1 (Table~\ref{tab:results-campaign1}) with a 64.19\% accuracy and a 63.42\% F1 value and
+Campaign~2 (Table~\ref{tab:results-campaign2}) with a 64.29\% accuracy and a 63.38\% F1 value.
+
+While in both Campaigns the magnitude\_64 downsampling approach yields better results than their best baseline approaches, there are always some
+configurations where nearly no improvement or even worse values can be observed.
+In Campaign~1, the binary\_64 model, for example, has a lower accuracy and only an F1 value 0.03\% higher than the 1-NN baseline, showing that
+the binary downsampling does not store that much valuable information when cropped to small images.
+In Campaign~2, the binary\_64 model also does not show better results, but within this campaign the density\_64 approach was more notable as it was the only one
+that dropped by over 8\%.
+Investigation showed the model stopped predicting \texttt{minres+gamg} and \texttt{fcg+gamg} entirely, which resulted in a failure rate of 0\%.
+The convergence penalty pushed the model away from those high-failure-rate classes.
+By never predicting them it avoided failures, but at the cost of reducing their recall to 0\%.
+This shows that a low failure rate alone is not a sufficient signal and must be read together with per-class recall, indicating that the convergence penalty as currently implemented is not sufficient. This will be investigated further in \autoref{sec:results-features}.
+
+As only a limited number of downsampling methods made sense, to introduce additional variations, RCM reordering was applied to selected modes.
+This had no significant impact in single-channel model results as values in most cases stayed within $\pm 0.6$\% of the original values.
+
+The worst-performing modes consist of those that only regard structural features like binary and diagonal
+and do not incorporate any magnitude information, confirming that entry values carry essential information for solver selection.
+The six highest-ranking modes by F1 - \texttt{magnitude}, \texttt{rcm\_signed\_magnitude}, \texttt{rcm\_magnitude},
+\texttt{signed\_magnitude}, \texttt{symmetry}, and \texttt{density} (128\,px) - are therefore carried forward as the basis
+for the dual-channel experiments in Campaign~3~(\autoref{subsec:campaign3}).
+
+%todo move to conclusion probably
+The results also show that if a model with exceptional speed needs to be selected, in most cases it won't be the model with the
+highest accuracy or the best F1 value.
+In Campaign~1 for example, \texttt{magnitude\_64} achieves the best accuracy and F1, but \texttt{signed\_magnitude\_64} achieves a lower MRT$\times$ of $1.069$ versus $1.259$, making it a better choice when runtime ratio is the priority.
+
+\section{Impact of Feature Engineering and Convergence Penalty}\label{sec:results-features}
+
+Table~\ref{tab:results-campaign2} (shown above in \autoref{sec:results-image-mode}) covers Campaign~2.
 From Campaign~1 to Campaign~2, six additional matrix features and the convergence penalty~(\autoref{sec:training}) with $\lambda=1.0$ were introduced.
 Because no isolated ablation was run for the 20-feature approach with $\lambda=0$ and the 14-feature approach with
 $\lambda=1.0$, the effects of these changes need to be discussed simultaneously.
@@ -147,38 +139,51 @@ The nocnn MLP-only baseline approach improves by 1.44\% to 59.75\%, suggesting t
 information.
 Since the penalty primarily shapes which solver classes the model avoids rather than the feature representation itself, the
 expanded feature set is the more likely driver of this particular gain.
-For CNN-based models the improvement is negligible, the best approach being magnitude, only shifts 0.10\,pp to 64.29\% in accuracy.
+For CNN-based models the improvement is negligible, the best approach being magnitude, only shifts 0.10\% to 64.29\% in accuracy.
 This shows that information from the new features might already be present in some way within the CNN representations,
 which would explain the diminishing results in the CNN model approaches vs.\ the nocnn approach.
 
 \paragraph{Failure rate impact}
 The metric where the convergence penalty is most clearly visible is the failure rate.
-Combined failure rates across single-channel experiments dropped from 3.5\%--6.8\% in Campaign~1 to
-3.4\%--6.0\% in Campaign~2.
+Combined failure rates across single-channel experiments dropped from 3.5\%--6.8\% in Campaign~1 (Table~\ref{tab:results-campaign1}) to
+3.4\%--6.0\% in Campaign~2 (Table~\ref{tab:results-campaign2}).
 This shows that the overall failure rate drops, sometimes significantly.
 When looking at the per-class results for the magnitude downsampling with 14 features and without the penalty versus the
 20 features and penalty approach, before the penalty, 4 classes had failure rates above 10\%, after, only 2 remain.
 Unfortunately, for \texttt{symmlq+sor} the failure rate surged from 14.8\% to 28.2\%, which then drops
 the overall failure rate back to previous levels.
+A likely explanation is that the convergence penalty suppressed other high-failure classes, as discussed further below,
+causing their probability mass to be redistributed towards solvers such as \texttt{symmlq+sor}.
 
 This behaviour is reproduced in the other models as well, therefore the penalty approach needs to be examined closely as to
 not only provide a shift in failure rates but realistic improvement.
 
-\paragraph{Density collapse side-effect}
-The main negative side effect in this experiment is the density collapse, where accuracy drops to 52.63\% from
-previously 60.27\%.
-This loss of over 10\,pp is only observed in this model and might indicate a training instability, as the drop was not reproduced in later experiments,
+\paragraph{Density side-effect}
+The main negative side effect in this experiment is that the \texttt{density\_64} model collapsed in accuracy, dropping to 52.63\% from previously 60.27\%.
+This loss of over 10\,\% is only observed in this model and might indicate a training instability, as the drop was not reproduced in later experiments,
 but may also hint that the density encoding and the penalty gradient do not interact well.
+
+\paragraph{Convergence penalty improvement}
+As discussed in \autoref{sec:results-image-mode}, the convergence penalty can cause the model to stop predicting certain classes entirely,
+reducing their recall to 0\% while also dropping their failure rate to 0\%.
+This happens because the current penalty fires on every training sample and discourages the model from assigning any probability to solvers that
+did not converge for that matrix.
+For classes like \texttt{minres+gamg} that fail on many matrices, this accumulates through the training and the model stops predicting them entirely in the end.
+
+Therefore, the convergence penalty needs improvement in future work.
+Two promising directions that might help reduce the downsides of the current convergence penalty are the usage of
+a threshold-gate, only penalising predictions when they exceed a certain probability, or incorporating the runtime ratio into
+the penalty calculation.
 
 \section{Single-Channel vs.\ Dual-Channel}\label{sec:results-single-vs-dual}
 
 Adding a second CNN channel consistently improves over the single-channel approaches.
-The best single-channel model, \texttt{magnitude\_64} (64.29\% accuracy, 63.38\% F1), is outperformed by the best
-dual-channel 64\,px model \texttt{magnitude\_\_log\_density\_64}, which achieves 65.94\% accuracy and 65.02\% F1.
-The best overall model is \texttt{magnitude\_\_rcm\_log\_density\_128} with 66.56\% accuracy, a 2.27\,pp improvement
+The best single-channel model, \texttt{magnitude\_64} (Table~\ref{tab:results-campaign2}: 64.29\% accuracy, 63.38\% F1), is outperformed by
+\texttt{magnitude\_\_log\_density\_64} (Table~\ref{tab:results-campaign4}: 65.94\% accuracy, 65.02\% F1).
+The best overall model is \texttt{magnitude\_\_rcm\_log\_density\_128} with 66.56\% accuracy, a 2.27\,\% improvement
 over the best single-channel approach.
 
-The magnitude of the gain depends strongly on which two channels are chosen; when their information encodes different properties
+The size of the gain depends strongly on which two channels are chosen; when their information encodes different properties
 they excel the most.
 This can be seen by the combination of \texttt{magnitude} (absolute values) with \texttt{log\_density} (structural density) or \texttt{rcm\_log\_density} (density after bandwidth reduction).
 Pairs with similar information like \texttt{rcm\_log\_density\_\_log\_density\_128} (two log-family channels) often drop even below some single-channel approaches
@@ -196,7 +201,7 @@ dual-channel pairs, confirming that magnitude encodes discriminative information
 \begin{table}[H]
   \centering
   \caption{Campaign~3 — Dual-channel: 14 features, no convergence penalty, large model, 64\,px.}
-  \label{tab:results-dual-14}
+  \label{tab:results-campaign3}
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{lrrrrrrrr}
     \toprule
@@ -236,7 +241,7 @@ dual-channel pairs, confirming that magnitude encodes discriminative information
 \begin{table}[H]
   \centering
   \caption{Campaign~4 — Dual-channel: 20 features, convergence penalty $\lambda=1.0$, large model, 64\,px and 128\,px.}
-  \label{tab:results-dual-20}
+  \label{tab:results-campaign4}
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{lrrrrrrrr}
     \toprule
@@ -281,8 +286,8 @@ dual-channel pairs, confirming that magnitude encodes discriminative information
   }
 \end{table}
 
-The dual-channel experiments are summarised in Table~\ref{tab:results-dual-14} (Campaign~3, 14 features, 64\,px)
-and Table~\ref{tab:results-dual-20} (Campaign~4, 20 features, 64\,px and 128\,px).
+The dual-channel experiments are summarised in Table~\ref{tab:results-campaign3} (Campaign~3, 14 features, 64\,px)
+and Table~\ref{tab:results-campaign4} (Campaign~4, 20 features, 64\,px and 128\,px).
 For Campaign~3 the six best image modes from Campaign~1 - \texttt{magnitude}, \texttt{rcm\_signed\_magnitude},
 \texttt{rcm\_magnitude}, \texttt{signed\_magnitude}, \texttt{symmetry}, and \texttt{density} -
 together with \texttt{sign} are combined into all 21 pairwise combinations.
@@ -290,38 +295,38 @@ For Campaign~4 only the six best image modes from Campaign~2 - \texttt{magnitude
 \texttt{rcm\_log\_density}, \texttt{symmetry}, \texttt{log\_density}, and \texttt{rcm\_signed\_magnitude} - are combined,
 yielding 15 pairs each evaluated at two resolutions (64\,px and 128\,px).
 
-The dominant finding over these two Campaigns is that \texttt{magnitude} is the most accurate channel also here.
+The dominant finding over these two Campaigns is that \texttt{magnitude} is the most informative channel in the dual-channel setting as well.
 Every top-performing pair across both campaigns includes it as one channel.
-Replacing \texttt{magnitude} with any other mode as the primary channel reduces accuracy by 2--3\,pp.
+Replacing \texttt{magnitude} with any other mode as the primary channel reduces accuracy by 2--3\,\%.
 
 The best second channel is \texttt{log\_density} (best F1) or \texttt{rcm\_log\_density}
 (best accuracy), both outperforming \texttt{symmetry} and \texttt{rcm\_signed\_magnitude}.
 The combination \texttt{rcm\_log\_density+log\_density} (two log-family channels) performs
 worst in Campaign~4, confirming that redundant modes do not benefit the model.
 
-128\,px consistently outperforms 64\,px by $+0.5$--$+1.3$\,pp across all mode pairs,
+128\,px consistently outperforms 64\,px by $+0.5$--$+1.3$\,\% across all mode pairs,
 at a cost of roughly $4\times$ longer training time and $4\times$ higher inference latency.
 The best Campaign~4 single model is \texttt{magnitude+rcm\_log\_density} at 128\,px
 with 66.56\% accuracy and 65.53\% F1.
 
-Dual-channel models outperform the best single-channel model by $+2.3$\,pp in accuracy
+Dual-channel models outperform the best single-channel model by $+2.3$\,\% in accuracy
 (66.56\% vs.\ 64.29\%), confirming that the two image channels carry complementary
 discriminative information beyond what either channel provides alone.
 
 \section{Effect of Image Resolution}\label{sec:results-resolution}
 
-In the dual-channel experiment with 64 and 128\,px images, shown in \autoref{tab:results-dual-20}, the increase in resolution
-brings a consistent improvement of 0.5--1.3\,pp in accuracy and F1 values across all 15 mode pairs.
-The largest gain is seen in \texttt{magnitude+rcm\_log\_density}, where accuracy improves by 1.13\,pp and F1 by 0.79\,pp; the smallest
-is on \texttt{magnitude+log\_density}, where accuracy stays the same and only F1 increases by 0.58\,pp.
+In the dual-channel experiment with 64 and 128\,px images, shown in \autoref{tab:results-campaign4}, the increase in resolution
+brings a consistent improvement of 0.5--1.3\,\% in accuracy and F1 values across all 15 mode pairs.
+The largest gain is seen in \texttt{magnitude+rcm\_log\_density}, where accuracy improves by 1.13\,\% and F1 by 0.79\,\%.
+The smallest gain is on \texttt{magnitude+log\_density}, where accuracy stays the same and only F1 increases by 0.58\,\%.
 No pair degrades at higher resolution.
 
-The cost of the higher resolution is an $4\times$ increase in inference time, as the dual-channel 64\,px model runs at approximately 2.8\,ms/sample and the
+The cost of the higher resolution is a $4\times$ increase in inference time, as the dual-channel 64\,px model runs at approximately 2.8\,ms/sample and the
 128\,px model takes about 10.9\,ms/sample.
 The training time per model is around 13\,min at 64\,px and around 48\,min at 128\,px, on a NVIDIA GeForce RTX 5060 Laptop GPU.
 
-In the single-channel experiments, results were more mixed: \texttt{binary\_128} and \texttt{density\_128} outperformed
-their 64\,px counterparts, but \texttt{magnitude\_64} beat \texttt{magnitude\_128} in accuracy and F1.
+In the single-channel experiments (Table~\ref{tab:results-campaign1}), results were more mixed.
+\texttt{binary\_128} and \texttt{density\_128} outperformed their 64\,px counterparts, but for the magnitude mode the 64\,px version outperformed the 128\,px version in accuracy and F1.
 This suggests that 64\,px is already sufficient for magnitude-encoded images, where per-cell absolute values matter more than the
 fine spatial arrangement of non-zeros.
 
@@ -338,7 +343,7 @@ fine spatial arrangement of non-zeros.
            \texttt{mag+log\_density}, \texttt{mag+rcm\_log\_density},
            \texttt{rcm\_mag+rcm\_signed\_mag}, \texttt{symmetry+log\_density}.
            Bold marks the column best.}
-  \label{tab:results-ensemble}
+  \label{tab:results-campaign5}
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{lrrrrrrrr}
     \toprule
@@ -351,28 +356,32 @@ fine spatial arrangement of non-zeros.
   }
 \end{table}
 
-%%TODO: Ensemble Acc/F1 vs. best individual model in the same configuration.
-%%      How many models are needed before returns diminish?
-%%      Failure rate of ensemble vs. individual.
-%
-\textbf{Campaign~3 ensemble.}
+\paragraph[Campaign 3 ensemble.]{Campaign~3 ensemble.}
 
-The Campaign~3 ensemble —
-\texttt{magnitude+signed\_magnitude}, \texttt{magnitude+rcm\_signed\_magnitude},
-\texttt{magnitude+symmetry}, and \texttt{rcm\_magnitude+signed\_magnitude} (all 64\,px) —
+The Campaign~3 ensemble (all 64\,px):
+\begin{itemize}
+  \item \texttt{magnitude+signed\_magnitude}
+  \item \texttt{magnitude+rcm\_signed\_magnitude}
+  \item \texttt{magnitude+symmetry}
+  \item \texttt{rcm\_magnitude+signed\_magnitude}
+\end{itemize}
 achieves 67.39\% accuracy and an F1 of 66.37\%, surpassing the best individual member
 (\texttt{magnitude+signed\_magnitude\_64} at 66.05\% accuracy and 65.32\% F1)
-by $+1.34$\,pp in accuracy and $+1.05$\,pp in F1.
+by $+1.34$\,\% in accuracy and $+1.05$\,\% in F1.
 The failure rate drops to 2.79\%, below all four member models individually,
 confirming that non-converging predictions are not correlated across members.
 
-\textbf{Campaign~4 ensemble.}
-The Campaign~4 ensemble —
-\texttt{magnitude+log\_density}, \texttt{magnitude+rcm\_log\_density},
-\texttt{rcm\_magnitude+rcm\_signed\_magnitude}, and \texttt{symmetry+log\_density} (all 128\,px) —
+\paragraph[Campaign 4 ensemble.]{Campaign~4 ensemble.}
+The Campaign~4 ensemble (all 128\,px):
+\begin{itemize}
+  \item \texttt{magnitude+log\_density}
+  \item \texttt{magnitude+rcm\_log\_density}
+  \item \texttt{rcm\_magnitude+rcm\_signed\_magnitude}
+  \item \texttt{symmetry+log\_density}
+\end{itemize}
 achieves 67.29\% accuracy and 66.77\% F1, compared to the best individual member
-(\texttt{magnitude+rcm\_log\_density\_128} at 66.56\% accuracy and 65.53\% F1),
-a gain of $+0.73$\,pp in accuracy and $+1.24$\,pp in F1.
+\texttt{magnitude+rcm\_log\_density\_128} (66.56\% accuracy and 65.53\% F1),
+a gain of $+0.73$\,\% in accuracy and $+1.24$\,\% in F1.
 The failure rate of 3.92\% and mean runtime ratio of 1.043$\times$ remain below or comparable to all individual members.
 
 Notably, the Campaign~4 ensemble surpasses the Campaign~3 ensemble only in F1 (66.77\% vs.\ 66.37\%),
@@ -380,7 +389,7 @@ while trailing in accuracy (67.29\% vs.\ 67.39\%).
 This comes at notably higher inference cost, running at approximately 46.5\,ms/sample —
 roughly $4\times$ slower than the Campaign~3 ensemble ($\approx$12\,ms) — due to the 128\,px images.
 
-\textbf{Inference cost.}
+\paragraph[Inference cost.]{Inference cost.}
 The ensemble multiplies inference time by the number of members ($4\times$).
 At $\approx$12\,ms/sample for four dual-channel 64\,px models (Campaign~3) and
 $\approx$46.5\,ms/sample for four dual-channel 128\,px models (Campaign~4), the
@@ -393,11 +402,11 @@ which range from tens of milliseconds to several seconds per solve.
 This section compares the thesis model against the MM-AutoSolver paper results and the replication performed as a baseline.
 The replication was trained on a synthetic dataset with some real SuiteSparse matrices included, but was
 evaluated on the same 19 solver classes with slightly different per-class distributions.
-The replication even exceeds the paper in accuracy by 3.43\,pp, as seen in \autoref{tab:comparison-mm}, and
+The replication even exceeds the paper in accuracy by 3.43\,\%, as seen in \autoref{tab:comparison-mm}, and
 may be the result of the slightly different data source~(\autoref{sec:dataset}).
 \begin{table}[H]
   \centering
-  \caption{Comparison against MM-AutoSolver \cite{xiong2025mmautosolver}.
+  \caption{Comparison against MM-AutoSolver~\cite{xiong2025mmautosolver}.
            Best single: \texttt{magnitude+rcm\_log\_density} at 128\,px (Campaign~4).
            Ensemble C3: 4 models, 64\,px, 14 features.
            Ensemble C4: 4 models, 128\,px, 20 features, $\lambda=1.0$.
@@ -418,17 +427,16 @@ may be the result of the slightly different data source~(\autoref{sec:dataset}).
 \end{table}
 
 A direct comparison between the MM-AutoSolver approach and the thesis approach is misleading for two reasons.
-First, the class distribution in the dataset differs substantially from the MM-AutoSolver dataset, which uses a dataset
-where the \texttt{fbcgsr+jacobi} and \texttt{bcgsl+none} classes make up more than 36\% of the whole distribution.
+First, the class distribution in the dataset differs substantially from the MM-AutoSolver dataset, where the \texttt{fbcgsr+jacobi} and \texttt{bcgsl+none} classes make up more than 36\% of the whole distribution.
 A model can exploit this by defaulting to one of these dominant classes when uncertain, inflating accuracy.
 The thesis dataset was constructed with a minimal per-class constraint of 250 matrices and capped at 600 matrices per class,
 resulting in a much flatter distribution and harder problem.
 Second, the training matrices also differ, as the MM-AutoSolver paper uses more real-world application matrices generated
-within FreeFEM and OpenFOAM.
-Within the thesis, only SuiteSparse matrices with real-world applications are used; the remainder consists of synthetically generated ones.
+within FreeFEM~\cite{hecht2012freefem} and OpenFOAM~\cite{weller1998tensorial}.
+In this thesis, only SuiteSparse matrices with real-world applications are used; the remainder consists of synthetically generated ones.
 
 Despite the lower accuracy, the macro-averaged metrics are less sensitive to class distribution and can still be compared.
-The thesis model even achieves around 7\,pp better results in Macro Precision and Macro Recall, meaning that despite the harder
+The thesis model even achieves around 7\,\% better results in Macro Precision and Macro Recall, meaning that despite the harder
 problem it learned to distinguish the classes better than the MM-AutoSolver approach.
 
 Another insight is the Top-3 accuracy of around 94\%, meaning that even when the predicted solver is not the best,
@@ -436,11 +444,6 @@ in nearly all cases it is among the top three choices.
 Combined with an average failure rate of around 3--4\%, the approach is practically viable.
 
 \section{Per-Solver Analysis}\label{sec:per-solver}
-
-%TODO: F1 / failure rate per solver-preconditioner class.
-%      Which solvers are easiest / hardest to predict?
-%      Correlation with class size (rare classes harder).
-%      Insight for framework integration: which solver pairs need more data.
 
 \autoref{tab:per-solver-ensemble} breaks down per-class F1, precision, recall, and failure rate
 for the Campaign~4 ensemble (members: \texttt{magnitude+log\_density},
@@ -509,25 +512,22 @@ and hard to separate from neighbouring classes by image alone.
 \paragraph{Failure rates.}
 \texttt{cg+ilu} stands out with a 30.5\% failure rate.
 This is likely a side-effect of the convergence penalty interacting with the new ILU-related
-features (\texttt{min\_diag\_dominance}, \texttt{diag\_dom\_variance}): the penalty reduces
-failure rates globally but appears to shift prediction errors for borderline cases where the
-new features signal marginal ILU suitability.
+features \texttt{min\_diag\_\allowbreak dominance} and \texttt{diag\_dom\_variance}.
+The penalty reduces failure rates globally but appears to shift prediction errors for borderline
+cases where the new features signal marginal ILU suitability.
 \texttt{symmlq+sor} (15.4\%) and \texttt{cr+ilu} (6.5\%) also carry elevated failure rates,
 as both rely on preconditioners sensitive to spectral properties not fully captured by the
 feature set.
-Ten classes achieve 0\% failure rate: \texttt{minres+gamg}, \texttt{cr+eisenstat},
-\texttt{gmres+gamg}, \texttt{cr+jacobi}, \texttt{cg+eisenstat}, \texttt{bcgsl+none},
-\texttt{fbcgsr+ilu}, \texttt{dgmres+none}, \texttt{cgs+gamg}, and \texttt{fgmres+gamg}.
+Ten classes achieve 0\% failure rate:
+\texttt{minres+gamg}, \texttt{cr+eisenstat}, \texttt{gmres+gamg}, \texttt{cr+jacobi},
+\texttt{cg+eisenstat}, \texttt{bcgsl+none}, \texttt{fbcgsr+ilu}, \texttt{dgmres+none},
+\texttt{cgs+gamg}, and \texttt{fgmres+gamg}.
 
 \section{Practical Inference Cost}\label{sec:inference-cost}
 
-%TODO: Latency: ms/sample on CPU for small, large, and dual-channel models.
-%      Mean runtime ratio (predicted time / oracle best time).
-%      Is the prediction overhead negligible compared to actual solve time?
-
-Model inference is fast enough to be neglectable compared to actual solver runtimes.
-\autoref{tab:inference-latency} summarises the per-sample cpu latency for the main model configurations, measured on the
-validation set of 969 samples in the evaluation set.
+Model inference is fast enough to be negligible compared to actual solver runtimes.
+\autoref{tab:inference-latency} summarises the per-sample CPU latency for the main model configurations, measured on the
+969 validation samples.
 
 \begin{table}[h]
   \centering
@@ -548,3 +548,9 @@ validation set of 969 samples in the evaluation set.
     \bottomrule
   \end{tabular}
 \end{table}
+
+The MLP-only baseline runs at under 0.1\,ms per sample, confirming that the scalar feature branch alone imposes negligible overhead.
+Adding the CNN increases latency to around 1--3\,ms for 64\,px models, while 128\,px models are roughly $4\times$ slower, consistent with the fourfold increase in pixel count.
+The dual-channel configuration adds only marginal cost over the equivalent single-channel model (2.8\,ms vs.\ 3.0\,ms at 64\,px), meaning the second image channel comes at almost no additional inference expense.
+The Campaign~4 ensemble is the most expensive configuration at approximately 46.5\,ms per sample, but even this remains well below typical iterative solver runtimes, which commonly run in the range of seconds for the matrix sizes considered in this thesis.
+Prediction overhead is therefore negligible in all configurations.

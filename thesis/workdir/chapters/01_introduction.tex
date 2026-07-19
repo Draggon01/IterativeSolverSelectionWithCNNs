@@ -3,99 +3,54 @@
 
 \chapter{Introduction}\label{chapter:introduction}
 
-\section{Motivation}
-Linear equations are a construct that one can observe in a lot of different fields.
-There are used in simple examples already in school and get really important when working with computer vision, robotics, machine learning \cite{gallier2019linear}, 3D transformations, projections and also in biology.
-While the linear equations in school are easily solvable by applying direct approaches, in harder problems the Cost of O(n³) hits the ceiling of usability pretty fast and iterative solver are used.
-They have a Cost of
+\section{Motivation}\label{sec:motivation}
 
-\section{Section}
-Citation test~\parencite{latex}.
+Linear systems of equations in the form $Ax=b$ arise across nearly every domain in computer science, from structural mechanics and fluid dynamics to machine learning and network analysis.
+While small systems can be solved directly with Gaussian elimination in \(\mathcal{O}(n^3)\) time, real-world problems often generate sparse matrices with thousands or millions of unknowns where direct methods become unfeasible.
+Such matrices are called sparse because the vast majority of their $n^2$ entries are zero; only a small fraction $\text{nnz} \ll n^2$ are non-zero.
+Iterative solvers, such as Conjugate Gradient (CG), Generalized Minimal Residual (GMRES), or Flexible Generalized Minimal Residual (FGMRES), are practical alternatives; they exploit sparsity and can converge in far fewer operations than their counterparts, but their performance depends on the combination of solver and preconditioner chosen for a given problem.
 
-Acronyms must be added in \texttt{main.tex} and are referenced using macros. The first occurrence is automatically replaced with the long version of the acronym, while all subsequent usages use the abbreviation.
+Selecting the best solver-preconditioner pair for a concrete problem is not easy.
+A configuration that converges in hundreds of iterations for a symmetric positive definite system from a finite-element discretisation may stagnate entirely on an indefinite or non-symmetric problem.
+Practitioners today rely on mathematical knowledge, trial and error, or specific benchmarking, which require significant manual effort in every step.
+Automating or improving this selection step is therefore an important open problem, which this thesis addresses.
 
-E.g. \texttt{\textbackslash ac\{TUM\}, \textbackslash ac\{TUM\}} $\Rightarrow$ \ac{TUM}, \ac{TUM}
+\section{Research Gap and Problem Statement}\label{sec:research-gap}
 
-For more details, see the documentation of the \texttt{acronym} package\footnote{\url{https://ctan.org/pkg/acronym}}.
-\subsection{Subsection}
+Recent work has shown that machine learning models can predict good solver--preconditioner pairs from matrix properties alone.
+In particular, Xiong et al.\ \cite{xiong2025mmautosolver} proposed \emph{MM-AutoSolver}, a multimodal CNN+MLP framework that encodes both a sparsity-pattern image and a hand-crafted feature vector to classify the best solver.
+They report 78.54\% accuracy on a benchmark dataset of 11{,}623 matrices from the SuiteSparse collection~\cite{davis2011university}.
+Weng et al.~\cite{weng2026embedding} take a complementary approach, learning solver--problem relationships directly from observed performance data rather than engineering features by hand.
+A detailed survey of both works is given in \autoref{chapter:related-work}.
 
-See~\autoref{tab:sample}, \autoref{fig:sample-drawing}, \autoref{fig:sample-plot}, \autoref{fig:sample-listing}.
+Several gaps remain in the MM-AutoSolver approach, however:
 
-\begin{table}[htpb]
-  \caption[Example table]{An example for a simple table.}\label{tab:sample}
-  \centering
-  \begin{tabular}{l l l l}
-    \toprule
-      A & B & C & D \\
-    \midrule
-      1 & 2 & 1 & 2 \\
-      2 & 3 & 2 & 3 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\begin{itemize}
+  \item \textbf{Limited feature study.} MM-AutoSolver uses 17 fixed features; the sensitivity to feature choice and the benefit of additional structural descriptors (e.g.\ diagonal dominance variance, structural symmetry) has not been studied.
+  \item \textbf{Single image mode.} Only a density representation at 128\,px is evaluated; it is unknown whether other encodings (magnitude, sign, RCM-reordered variants) carry complementary information.
+  \item \textbf{No multi-channel fusion.} Combining two image modes as a dual-channel input has not been explored.
+  \item \textbf{Convergence failures unpenalised.} Standard cross-entropy loss does not discourage predictions that select non-converging solvers; failure rates up to 75\% were observed in preliminary experiments.
+  \item \textbf{No ensemble evaluation.} The benefit of averaging predictions from multiple independently trained models has not been quantified.
+\end{itemize}
 
-\begin{figure}[htpb]
-  \centering
-  % This should probably go into a file in figures/
-  \begin{tikzpicture}[node distance=3cm]
-    \node (R0) {$R_1$};
-    \node (R1) [right of=R0] {$R_2$};
-    \node (R2) [below of=R1] {$R_4$};
-    \node (R3) [below of=R0] {$R_3$};
-    \node (R4) [right of=R1] {$R_5$};
+\section{Research Goals and Contributions}\label{sec:contributions}
 
-    \path[every node]
-      (R0) edge (R1)
-      (R0) edge (R3)
-      (R3) edge (R2)
-      (R2) edge (R1)
-      (R1) edge (R4);
-  \end{tikzpicture}
-  \caption[Example drawing]{An example for a simple drawing.}\label{fig:sample-drawing}
-\end{figure}
+This thesis pursues the following goals:
 
-\begin{figure}[htpb]
-  \centering
+\begin{enumerate}
+  \item \textbf{Replication.} Re-implement MM-AutoSolver as a controlled baseline to verify and contextualise the reported results on an independently generated dataset.
+  \item \textbf{Feature engineering.} Extend the feature set from 14 to 20 matrix descriptors and measure the impact on classification accuracy.
+  \item \textbf{Image mode study.} Train and compare 14 single-channel image representations (binary, density, magnitude, sign, symmetry, diagonal, signed\_magnitude, and their RCM-reordered counterparts) at 64\,px and 128\,px.
+  \item \textbf{Dual-channel CNN.} Fuse pairs of the best-performing modes into a two-channel input and evaluate 21 pairwise combinations in Campaign~3 and 15 in Campaign~4 at both resolutions.
+  \item \textbf{Convergence penalty.} Introduce a loss term that penalises probability mass assigned to non-converging solvers and evaluate its effect on failure rate.
+  \item \textbf{Ensemble evaluation.} Average softmax outputs from multiple top models and measure the accuracy gain over any individual model.
+\end{enumerate}
 
-  \pgfplotstableset{col sep=&, row sep=\\}
-  % This should probably go into a file in data/
-  \pgfplotstableread{
-    a & b    \\
-    1 & 1000 \\
-    2 & 1500 \\
-    3 & 1600 \\
-  }\exampleA
-  \pgfplotstableread{
-    a & b    \\
-    1 & 1200 \\
-    2 & 800 \\
-    3 & 1400 \\
-  }\exampleB
-  % This should probably go into a file in figures/
-  \begin{tikzpicture}
-    \begin{axis}[
-        ymin=0,
-        legend style={legend pos=south east},
-        grid,
-        thick,
-        ylabel=Y,
-        xlabel=X
-      ]
-      \addplot table[x=a, y=b]{\exampleA};
-      \addlegendentry{Example A}
-      \addplot table[x=a, y=b]{\exampleB};
-      \addlegendentry{Example B}
-    \end{axis}
-  \end{tikzpicture}
-  \caption[Example plot]{An example for a simple plot.}\label{fig:sample-plot}
-\end{figure}
+\section{Thesis Structure}\label{sec:structure}
 
-\begin{figure}[htpb]
-  \centering
-  \begin{tabular}{c}
-  \begin{lstlisting}[language=SQL]
-    SELECT * FROM tbl WHERE tbl.str = "str"
-  \end{lstlisting}
-  \end{tabular}
-  \caption[Example listing]{An example for a source code listing.}\label{fig:sample-listing}
-\end{figure}
+The remainder of this thesis is organised as follows.
+\autoref{chapter:related-work} surveys existing work on iterative solver selection and the MM-AutoSolver baseline.
+\autoref{chapter:methodology} describes the dataset, model architecture, training procedure, and evaluation protocol.
+\autoref{chapter:experiments} details each experimental campaign in turn.
+\autoref{chapter:results} analyses and compares the results across all configurations.
+\autoref{chapter:conclusion} summarises the findings, discusses limitations, and outlines directions for future work.

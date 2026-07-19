@@ -1,0 +1,76 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Conclusion}\label{chapter:conclusion}
+
+\section{Summary of Findings}\label{sec:summary-findings}
+
+This thesis investigated the use of convolutional networks for iterative solver selection on sparse linear systems.
+The most important finding for the image representation is that the magnitude encoding consistently provides the best information
+for the CNN branch, outperforming all other encoding strategies tested across all experiments.
+The 14-feature set proved sufficient for the task,
+as the six additional features yielded only marginal accuracy gains. This suggests that the CNN image already captures much of the information
+the extra features encode.
+The MM-AutoSolver architecture was successfully replicated on an independently constructed dataset, confirming the viability of the multimodal approach and
+validating their results~(\autoref{sec:mm-replication}).
+Extending the single CNN channel to a dual-channel approach, where complementary image encodings are processed in parallel, consistently improved both accuracy and F1 over the
+single-channel approach.
+An ensemble of four dual-channel models improved the results further, showing that independently trained models with different image mode combinations capture complementary information.
+Furthermore, the convergence penalty was found to cause class avoidance rather than real failure rate reduction in some cases, with potential
+improvements discussed in \autoref{sec:results-features}.
+Overall, the thesis demonstrates that a multimodal approach can meaningfully improve solver selection over non-learning baselines,
+given sufficient training data and compute.
+
+\section{Contributions}\label{sec:final-contributions}
+
+\begin{itemize}
+  \item Replication of the MM-AutoSolver architecture on an independently
+        constructed dataset, validating the multimodal approach.
+  \item Design and evaluation of a custom residual CNN architecture in two
+        model sizes, supporting both single- and dual-channel image input.
+  \item Systematic comparison of 14 image downsampling strategies across both
+        64\,px and 128\,px resolutions, identifying magnitude encoding as the
+        most effective representation.
+  \item Dual-channel CNN evaluation across 30 image mode combinations via a
+        shared multimode HDF5 rendering pipeline, demonstrating consistent
+        improvement over single-channel models.
+  \item Ensemble evaluation of four dual-channel models, showing further
+        accuracy and F1 gains through complementary model combination.
+  \item Introduction and evaluation of 6 additional matrix features, showing
+        that the original 14-feature set is largely sufficient.
+  \item Analysis of the convergence penalty loss term, identifying a
+        class-avoidance side-effect and suggesting directions for improvement.
+  \item Evaluation of inference cost, confirming that prediction overhead
+        remains negligible compared to typical iterative solver runtimes.
+\end{itemize}
+
+\section{Limitations}\label{sec:limitations}
+
+The dataset, while sufficient for the experiments conducted, is limited in size and diversity.
+The synthetic data distribution might not cover all real-world matrix types, and a larger variety of other sources for real-world matrices would be needed
+to validate the findings more broadly.
+Furthermore, only 19 fixed solver-preconditioner pairs from PETSc were evaluated, even though the full library has many more combinations to offer.
+Hyperparameter search was limited to fixed learning rates and architecture depths, leaving potential performance improvements unexplored.
+The accuracy drop observed in the \texttt{density\_64} model under the convergence penalty was not fully investigated, and only hypotheses on the cause were discussed.
+Finally, the current approach uses hard labels based on the fastest converging solver; soft labels derived from runtime ratios could provide richer training signals.
+
+\section{Future Work}\label{sec:future-work}
+
+\begin{itemize}
+  \item Investigation of the \texttt{density\_64} side-effect under the convergence penalty,
+        for example through a lambda sweep or mode-specific penalty weights.
+  \item An improved convergence penalty formulation, such as the squared penalty or a
+        runtime-ratio-based penalty as proposed in \autoref{sec:results-features}.
+  \item Soft-label training, where targets are derived from runtime ratios rather than
+        a hard best-solver label, to provide richer training signal.
+  \item A larger and more diverse dataset, incorporating additional SuiteSparse matrices
+        and a wider variety of synthetic matrix types, to improve generalisation.
+  \item Extension to larger image resolutions (e.g.\ 256\,px) or learned image encodings
+        to capture finer structural detail.
+  \item A generalisation study training on synthetic data and evaluating on pure
+        SuiteSparse matrices to quantify the distribution shift.
+  \item Online integration of the model as a lightweight inference module within the
+        embedding-based evaluation pipeline~\cite{weng2026embedding}, to measure real-world solver selection benefit.
+  \item Active learning strategies that query the solver oracle only for the most
+        uncertain matrices, reducing data generation cost.
+\end{itemize}

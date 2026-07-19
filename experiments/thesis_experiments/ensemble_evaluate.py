@@ -195,11 +195,17 @@ def ensure_multimode(needed_modes: list[str]) -> None:
 
     if os.path.exists(multimode_h5):
         with h5py.File(multimode_h5, "r") as f:
+            stored_size = f.attrs.get("image_size", IMAGE_SIZE)
             missing = [m for m in needed_modes if f"images_{m}" not in f]
-        if not missing:
-            log.info("Multimode HDF5 already has all needed modes — skipping render.")
+        if stored_size != IMAGE_SIZE:
+            log.info("Multimode HDF5 is at %dpx but IMAGE_SIZE=%d — deleting and re-rendering.", stored_size, IMAGE_SIZE)
+            os.remove(multimode_h5)
+            missing = needed_modes
+        elif not missing:
+            log.info("Multimode HDF5 already has all needed modes at %dpx — skipping render.", IMAGE_SIZE)
             return
-        log.info("Multimode HDF5 missing modes %s — rendering ...", missing)
+        else:
+            log.info("Multimode HDF5 missing modes %s — rendering ...", missing)
     else:
         log.info("Multimode HDF5 not found — rendering now ...")
         missing = needed_modes
