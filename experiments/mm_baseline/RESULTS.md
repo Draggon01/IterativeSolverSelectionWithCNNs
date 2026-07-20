@@ -10,53 +10,49 @@ for the auto-selection of iterative solvers and preconditioners",
 
 | Metric | Ours | Paper |
 |---|---|---|
-| Accuracy | **76.54%** | 78.54% |
-| Macro Precision | 55.80% | 63.41% |
-| Macro Recall | **69.32%** | 62.81% |
-| Macro F1 | 56.64% | 62.53% |
+| Accuracy | **81.97%** | 78.54% |
+| Macro Precision | 62.88% | 63.41% |
+| Macro Recall | 61.83% | 62.81% |
+| Macro F1 | 60.45% | 62.53% |
+| Top-2 Accuracy | 90.13% | — |
+| Top-3 Accuracy | 95.01% | — |
 
 Additional metric not reported in the paper:
 
 | Near-optimal Accuracy | Score |
 |---|---|
-| Within ±5% of best runtime | 89.37% |
-| Within ±10% of best runtime | **93.41%** |
-| Within ±20% of best runtime | 96.40% |
-
-Near-optimal accuracy measures the fraction of predictions whose chosen solver
-runs within X% of the fastest possible solver — a more practically meaningful
-metric than exact class accuracy for solver selection.
+| Within ±5% of best runtime | 86.97% |
+| Within ±10% of best runtime | 91.47% |
+| Within ±20% of best runtime | 95.86% |
 
 ---
 
 ## Per-Class Results
 
-Dataset: 11,381 samples (synthetic), 10% held-out validation.
-Paper dataset: 10,404 samples (real SuiteSparse matrices).
+Dataset: 8,214 samples, 10% held-out validation (821 samples).
+Paper dataset: 11,623 samples (real SuiteSparse matrices).
 
 | Solver | Ours (N) | Paper (N) | F1 | Precision | Recall |
 |---|---|---|---|---|---|
-| fbcgsr+jacobi | 2611 | 2173 | 98.6% | 98.0% | 99.2% |
-| bcgsl+none | 376 | 2054 | 88.2% | 90.9% | 85.7% |
-| symmlq+icc | 409 | 1201 | 48.0% | 50.0% | 46.2% |
-| symmlq+jacobi | 10 ⚠ | 923 | 30.8% | 18.2% | 100.0% |
-| dgmres+none | 229 | 650 | 92.7% | 95.0% | 90.5% |
-| gmres+gamg | 525 | 640 | 65.9% | 69.8% | 62.5% |
-| cr+eisenstat | 1268 | 598 | 92.8% | 96.0% | 89.7% |
-| symmlq+sor | 34 ⚠ | 582 | 46.2% | 30.0% | 100.0% |
-| fbcgsr+ilu | 222 | 562 | 89.8% | 91.7% | 88.0% |
-| minres+gamg | 118 | 524 | 0.0% | 0.0% | 0.0% |
-| fcg+gamg | 245 | 342 | 39.3% | 36.4% | 42.9% |
-| cr+jacobi | 1113 | 310 | 79.4% | 81.1% | 77.8% |
-| cg+ilu | 649 | 275 | 44.8% | 46.7% | 43.1% |
-| fgmres+gamg | 258 | 226 | 0.0% | 0.0% | 0.0% |
-| cg+eisenstat | 2500 | 224 | 83.6% | 93.5% | 75.5% |
-| cg+bjacobi | 619 | 193 | 70.6% | 65.1% | 77.1% |
-| cr+ilu | 61 | 68 | 11.8% | 6.7% | 50.0% |
-| cgs+gamg | 10 ⚠ | 49 | 4.9% | 2.5% | 100.0% |
-| bcgsl+asm | 124 | 29 | 88.9% | 88.9% | 88.9% |
-
-⚠ Fewer than 35 training samples — results unreliable for these classes.
+| fbcgsr+jacobi | 2000 | 2173 | 98.8% | 98.6% | 99.0% |
+| bcgsl+none | 2000 | 2054 | 97.3% | 96.6% | 98.0% |
+| symmlq+icc | 161 | 1201 | 51.4% | 42.9% | 64.3% |
+| symmlq+jacobi | 218 | 923 | 95.8% | 100.0% | 92.0% |
+| dgmres+none | 64 | 650 | 66.7% | 60.0% | 75.0% |
+| gmres+gamg | 395 | 640 | 41.0% | 38.1% | 44.4% |
+| cr+eisenstat | 662 | 598 | 77.9% | 69.9% | 87.9% |
+| symmlq+sor | 120 | 582 | 93.3% | 100.0% | 87.5% |
+| fbcgsr+ilu | 622 | 562 | 93.2% | 100.0% | 87.3% |
+| minres+gamg | 416 | 524 | 56.6% | 43.5% | 81.1% |
+| fcg+gamg | 142 | 342 | 0.0% | 0.0% | 0.0% |
+| cr+jacobi | 343 | 310 | 94.9% | 93.3% | 96.6% |
+| cg+ilu | 304 | 275 | 28.6% | 46.7% | 20.6% |
+| fgmres+gamg | 144 | 226 | 0.0% | 0.0% | 0.0% |
+| cg+eisenstat | 248 | 224 | 52.5% | 53.3% | 51.6% |
+| cg+bjacobi | 214 | 193 | 56.0% | 51.9% | 60.9% |
+| cr+ilu | 75 | 68 | 0.0% | 0.0% | 0.0% |
+| cgs+gamg | 54 | 49 | 44.4% | 100.0% | 28.6% |
+| bcgsl+asm | 32 | 29 | 100.0% | 100.0% | 100.0% |
 
 ---
 
@@ -64,44 +60,19 @@ Paper dataset: 10,404 samples (real SuiteSparse matrices).
 
 | Parameter | Value |
 |---|---|
-| Epochs run | ~200 (converged, no improvement after ~150) |
+| Epochs | 256 |
 | Batch size | 512 |
 | Optimizer | Adam, lr = 1×10⁻³ |
-| Loss | CrossEntropy with inverse-frequency class weights |
+| Loss | CrossEntropy |
 | Validation split | 10% (fixed seed) |
 | Device | CUDA |
-
-Deviation from paper: class-weighted loss was added to compensate for
-dataset imbalance. The paper used unweighted CrossEntropy on a more
-balanced real-world dataset.
 
 ---
 
 ## Dataset Differences
 
-| Aspect                      | Ours                                     | Paper                                          |
-|-----------------------------|------------------------------------------|------------------------------------------------|
-| Source                      | Synthetic (random SPD, non-sym, Poisson) | Real SuiteSparse matrices                      |
-| Total samples               | 11,381                                   | 10,404                                         |
-| Rare classes (< 50 samples) | 3 (symmlq+jacobi, symmlq+sor, cgs+gamg)  | 1 (bcgsl+asm: 29)                              |
-| Matrix sizes                | n = 100 – 46,772                         | they have matrices with more than 1mil entries |
-
----
-
-## Discussion
-
-Accuracy is within **2% of the paper** despite using only synthetic matrices
-instead of real engineering problems from SuiteSparse. Macro recall
-**exceeds** the paper (69.3% vs 62.8%), indicating the model generalises well
-across solver families.
-
-The macro F1 gap (56.6% vs 62.5%) is attributable to three classes with
-fewer than 35 training samples (symmlq+jacobi, symmlq+sor, cgs+gamg), which
-synthetic matrix generation cannot reliably reproduce. `minres+gamg` and
-`fgmres+gamg` score 0% F1 because they are structurally indistinguishable
-from `gmres+gamg` on synthetic data — all three are GAMG-preconditioned
-methods that converge similarly on Poisson-type problems.
-
-The near-optimal accuracy of **93.4% at ±10%** shows that even when the model
-does not predict the single fastest solver, it almost always selects one that
-is competitive — which is the practically relevant criterion for deployment.
+| Aspect | Ours | Paper |
+|---|---|---|
+| Source | Synthetic + SuiteSparse | Real SuiteSparse matrices |
+| Total samples | 8,214 | 11,623 |
+| Matrix sizes | n = 100 – 84,617 | up to >1,000,000 rows |

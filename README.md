@@ -2,367 +2,268 @@
 
 Bachelor's thesis — TUM Informatics, Leon Unterberger, 2026.
 
-Trains a CNN+MLP classifier to predict the best PETSc Krylov solver for a
-sparse linear system A x = b, given only the sparsity pattern and scalar
-statistics of A.
+Trains a multimodal CNN+MLP classifier to predict the best PETSc Krylov solver and
+preconditioner for a sparse linear system $Ax = b$, given the sparsity-pattern image and
+scalar statistics of $A$.  The primary contribution is a systematic evaluation of 14 image
+encoding strategies, dual-channel CNN inputs, and an ensemble approach.
 
 ---
 
 ## Repository layout
 
 ```
-src/                        Python pipeline scripts
-  model.py                  Shared model architecture + feature extraction
-  generate_data.py          Generate synthetic training matrices
-  ingest_suitesparse.py     Download and ingest SuiteSparse matrices
-  train_solver_selector.py  Train the CNN classifier
-  predict.py                Predict the best solver for a new matrix
-  benchmark_solvers.py      Benchmark all solvers against each other
-  visualize.py              Save static analysis figures (PNG)
-  browse_data.py            Interactive matrix browser (requires display)
+experiments/
+  thesis_experiments/     Main CNN experiments (Campaigns 1–5)
+    model.py              Architecture, 14/20 features, image rendering, 19 solver pairs
+    generate.py           Synthetic data generation via PETSc benchmarking
+    ingest.py             SuiteSparse matrix ingestion (auto / manual / githubdata modes)
+    train.py              Training (AdamW + cosine annealing, EXPERIMENT-namespaced)
+    evaluate.py           Evaluation: Acc, MP, MR, F1, top-k
+    ensemble_evaluate.py  Ensemble of independently trained dual-channel models
+    render.py             Re-render images from an existing base dataset
+    predict.py            Inference script
+    benchmark.py          Per-matrix solver benchmarking
+    docker-compose.yml
+
+  mm_baseline/            MM-AutoSolver re-implementation (Xiong et al. 2025)
+    mm_model.py           Architecture + 17 features + 128×128 density image
+    mm_generate.py        Data generation
+    mm_train.py           Training (Adam, lr=1e-3, 256 epochs, batch=512)
+    mm_evaluate.py        Evaluation: Acc, MP, MR, F1 (paper's four metrics)
+    mm_ingest.py          SuiteSparse ingestion
+    mm_trim.py            Dataset trimming
+    check_distribution.py Per-class sample counts and dataset statistics
+    docker-compose.yml
+
+  shared/
+    generators.py         Shared synthetic matrix generators
+    matrix_io.py          Shared .mtx loading and classification helpers
+    cache/                Shared SuiteSparse download cache
 
 container/
-  Dockerfile
-  docker-compose.yml
-  requirements.txt
+  Dockerfile              Shared base image (PETSc + Python dependencies)
+  requirements.txt        Python packages installed inside the container
 
-thesis/workdir/             LaTeX thesis source (TUM template)
+thesis/workdir/           LaTeX thesis source (TUM template)
+  chapters/               One .tex file per chapter
+  pages/                  Cover, title, disclaimer, abstract, etc.
+  bibliography.bib
+  main.tex                Root document
+  settings.tex            Packages and style config
+
+thesis/BachelorThesis.pdf  Final submitted PDF
+requirements.txt           Python packages for local (non-Docker) setup
 ```
 
 ---
 
-## Local setup
+## Docker pipeline (recommended)
 
-Requires Python 3.10+, a working PETSc installation, and a display for
-the interactive browser.
+Docker handles PETSc and all Python dependencies automatically.  Install
+[Docker](https://docs.docker.com/get-docker/) and
+[Docker Compose](https://docs.docker.com/compose/) first.
 
-```bash
-# 1. Create and activate a virtual environment
-python3.10 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# 2. Install PETSc first (petsc4py must link against it)
-pip install "petsc>=3.20"
-pip install --no-build-isolation "petsc4py>=3.20"
-
-# 3. Install remaining dependencies
-pip install scipy h5py tensorboard matplotlib ssgetpy
-
-# 4. All pipeline scripts run from src/
-cd src/
-```
-
-If `pip install petsc` fails with a BLAS error, install BLAS first:
-```bash
-sudo apt-get install libopenblas-dev   # Ubuntu/Debian
-sudo dnf install openblas-devel        # Fedora/RHEL
-brew install openblas                  # macOS
-```
-
----
-
-## Local pipeline (step by step)
-
-### Step 1 — Generate synthetic training data
+### Main experiments (`experiments/thesis_experiments/`)
 
 ```bash
-N_SAMPLES=1000 DATA_DIR=./data python generate_data.py
-```
+cd experiments/thesis_experiments
 
-| Variable | Default | Description |
-|---|---|---|
-| `N_SAMPLES` | 1000 | Number of matrices to generate |
-| `DATA_DIR` | `/workspace/data` | Output directory for `dataset.h5` |
-| `MAX_ITER` | 2000 | Max KSP iterations per solver |
-| `TOL` | 1e-8 | Convergence tolerance |
-| `SEED` | 42 | RNG seed |
-
-### Step 1b — Ingest SuiteSparse matrices (optional)
-
-Appends real-world matrices from the SuiteSparse collection to the same
-`dataset.h5`.  Requires `ssgetpy` (`pip install ssgetpy`).
-
-```bash
-# Auto mode — download directly from SuiteSparse
-MODE=auto MIN_N=100 MAX_N=10000 N_MATRICES=200 DATA_DIR=./data \
-    python ingest_suitesparse.py
-
-# Manual mode — use locally downloaded .mtx files
-MODE=manual MTX_DIR=./data/mtx DATA_DIR=./data \
-    python ingest_suitesparse.py
-```
-
-| Variable | Default | Description |
-|---|---|---|
-| `MODE` | `auto` | `auto` (ssgetpy) or `manual` (local `.mtx` files) |
-| `MIN_N` | 100 | Minimum matrix dimension |
-| `MAX_N` | 50000 | Maximum matrix dimension |
-| `N_MATRICES` | 200 | Maximum matrices to ingest |
-| `ONLY_SPD` | 0 | Set to `1` to restrict to SPD matrices |
-| `MTX_DIR` | `./data/mtx` | Directory of `.mtx` files (manual mode) |
-| `CACHE_DIR` | `./data/suitesparse_cache` | Download cache (auto mode) |
-
-Safe to re-run — already-ingested matrices are skipped automatically.
-
-### Step 2 — Train the classifier
-
-```bash
-DATA_DIR=./data \
-CHECKPOINT_DIR=./checkpoints \
-LOG_DIR=./logs \
-MAX_EPOCHS=100 \
-BATCH_SIZE=256 \
-LEARNING_RATE=0.0003 \
-    python train_solver_selector.py
-```
-
-| Variable | Default | Description |
-|---|---|---|
-| `MAX_EPOCHS` | 100 | Total training epochs |
-| `BATCH_SIZE` | 256 | Samples per forward/backward pass |
-| `LEARNING_RATE` | 3e-4 | Initial AdamW learning rate |
-| `CHECKPOINT_EVERY` | 5 | Save a checkpoint every N epochs |
-| `KEEP_LAST_N` | 3 | Number of checkpoints to retain |
-| `VAL_SPLIT` | 0.15 | Fraction of data used for validation |
-| `DEVICE` | `auto` | `cpu`, `cuda`, or `auto` |
-
-Training automatically resumes from the latest checkpoint if one exists.
-Monitor live with TensorBoard:
-```bash
-tensorboard --logdir=./logs   # open http://localhost:6006
-```
-
-### Step 3 — Predict the best solver for a new matrix
-
-```bash
-CHECKPOINT_DIR=./checkpoints python predict.py
-
-# Use a specific matrix (scipy .npz format)
-MATRIX_PATH=./my_matrix.npz CHECKPOINT_DIR=./checkpoints python predict.py
-```
-
-### Step 4 — Benchmark all solvers (validation)
-
-Runs every solver against a matrix and prints a ranked timing table.
-
-```bash
-python benchmark_solvers.py
-
-# With a specific matrix and 60-second per-solver timeout
-MATRIX_PATH=./my_matrix.npz BENCHMARK_T=60 python benchmark_solvers.py
-
-# Save results to JSON
-RESULTS_PATH=./results.json python benchmark_solvers.py
-```
-
-### Step 5 — Visualise the dataset
-
-```bash
-# Save static PNG figures to ./viz/
-DATA_DIR=./data CHECKPOINT_DIR=./checkpoints VIZ_DIR=./viz python visualize.py
-
-# Also open figures interactively
-SHOW=1 DATA_DIR=./data python visualize.py
-```
-
-Produces four figures:
-
-| File | Contents |
-|---|---|
-| `01_dataset_overview.png` | Label distribution, size/density histograms, box plots |
-| `02_sparsity_gallery.png` | 24 example sparsity patterns coloured by best solver |
-| `03_feature_distributions.png` | All 14 features split by best solver |
-| `04_predictions.png` | Confusion matrix, per-solver accuracy, probability heatmap |
-
-### Step 6 — Interactive matrix browser
-
-```bash
-DATA_DIR=./data CHECKPOINT_DIR=./checkpoints python browse_data.py
-```
-
-Navigate through individual matrices, see sparsity patterns, solver
-probabilities, actual runtimes, and top-3 solver rankings.  Use the
-**[View]** button to toggle the right panel between Features / Runtimes / Info.
-
-Requires a display.  On a remote server use X11 forwarding:
-```bash
-ssh -X user@server
-```
-
----
-
-## Docker pipeline
-
-Build the image once, then run each step with `docker compose run`:
-
-```bash
-cd container/
-
-# Step 1 — generate synthetic data
+# Step 1 — generate training data (writes to ./data/)
 docker compose run datagen
 
-# Step 1b — ingest SuiteSparse (optional)
+# Step 1b — ingest SuiteSparse matrices (optional, appends to ./data/dataset.h5)
 docker compose run ingest
 
 # Step 2 — train
-docker compose run trainer
+EXPERIMENT=my_run IMAGE_MODE=magnitude docker compose run trainer
 
-# Step 3 — predict
-docker compose run predict
+# Step 3 — evaluate
+EXPERIMENT=my_run docker compose run evaluate
 
-# Step 4 — benchmark
-docker compose run --rm predict python benchmark_solvers.py
+# Step 3b — ensemble evaluation (four dual-channel models)
+docker compose run ensemble_evaluate
 
-# Step 5 — visualise (figures written to container/viz/)
-docker compose run --rm predict python visualize.py
+# Step 4 — inference on a new matrix
+EXPERIMENT=my_run docker compose run predict
 
 # Monitor training live
-docker compose up tensorboard    # open http://localhost:6006
+docker compose up tensorboard   # open http://localhost:6006
 ```
 
-Enable GPU by uncommenting the `deploy.resources.reservations` block in
-`docker-compose.yml` before running the trainer.
+Key environment variables for the trainer:
 
----
-
-## Dataset format (`dataset.h5`)
-
-| Dataset | Shape | dtype | Description |
-|---|---|---|---|
-| `images` | (N, 64, 64) | float32 | Sparsity-pattern image (encoding set by `IMAGE_MODE`) |
-| `features` | (N, 14) | float32 | Scalar matrix statistics (see feature list below) |
-| `labels` | (N,) | int32 | Index of best (KSP, PC) pair |
-| `top3_labels` | (N, 3) | int8 | Top-3 pair indices ranked by wall time; -1 = no rank |
-| `runtimes` | (N, N_SOLVERS) | float32 | Per-pair wall time in seconds; NaN = no data |
-| `source` | (N,) | str | Origin, e.g. `synthetic/poisson2d`, `suitesparse/HB/bcsstk01` |
-
-Root attributes: `solvers` (ordered list of 30 `ksp+pc` names), `image_mode` (encoding used).
-
-### Feature vector (14 elements)
-
-| # | Name | Description |
+| Variable | Default | Description |
 |---|---|---|
-| 0 | `log(n)` | Log-scaled matrix dimension |
-| 1 | `log(nnz)` | Log-scaled non-zero count |
-| 2 | `density` | Fill ratio nnz / n² |
-| 3 | `symmetry` | ‖A − Aᵀ‖_F / ‖A‖_F — 0 = symmetric |
-| 4 | `diag dom.` | Mean \|diag\| / row sum (diagonal dominance) |
-| 5 | `Frob/n` | Size-normalised Frobenius norm |
-| 6 | `trace/n` | Size-normalised trace |
-| 7 | `max/mean` | Max absolute entry / mean absolute entry |
-| 8 | `spectral rad.` | log(1 + spectral radius estimate, power iteration) |
-| 9 | `log cond.` | log(1 + max\|diag\| / min\|diag\|) — condition proxy |
-| 10 | `bandwidth/n` | Max \|i − j\| over all non-zeros, normalised |
-| 11 | `diag nnz frac` | Fraction of non-zero diagonal entries |
-| 12 | `row norm CV` | Coefficient of variation of row norms |
-| 13 | `offdiag Frob` | ‖A − D‖_F / ‖A‖_F — off-diagonal energy fraction |
+| `EXPERIMENT` | `default` | Run name; checkpoints/logs go to `checkpoints/<EXPERIMENT>/` |
+| `IMAGE_MODE` | `binary` | Image encoding (see [Image encodings](#image-encodings)) |
+| `IMAGE_MODE2` | _(none)_ | Second channel for dual-channel CNN; leave empty for single-channel |
+| `IMAGE_SIZE` | `64` | Image resolution in pixels |
+| `MODEL_SIZE` | `small` | `small` (~0.5 M params) or `large` (~2.1 M params) |
+| `N_SAMPLES` | `10000` | Synthetic training matrices to generate |
+| `MAX_EPOCHS` | `100` | Training epochs |
+| `BATCH_SIZE` | `256` | Samples per step |
+| `LEARNING_RATE` | `3e-4` | Initial AdamW learning rate |
+| `CONVERGENCE_PENALTY` | `0.0` | λ for the divergence penalty term |
+| `DEVICE` | `auto` | `cpu`, `cuda`, or `auto` |
+
+GPU support: uncomment the `deploy.resources.reservations` block in `docker-compose.yml`.
+
+### MM-AutoSolver baseline (`experiments/mm_baseline/`)
+
+```bash
+cd experiments/mm_baseline
+
+# Step 1 — generate baseline dataset (128×128 density images, 17 features)
+docker compose run mm_datagen
+
+# Step 2 — train MM-AutoSolver (Adam lr=1e-3, 256 epochs, batch=512)
+docker compose run mm_trainer
+
+# Step 3 — evaluate: Acc, MP, MR, F1
+docker compose run mm_evaluate
+
+# Monitor training
+docker compose up mm_tensorboard   # open http://localhost:6007
+```
 
 ---
 
-## Experiments
+## Local setup (Fedora only)
 
-Each experiment changes one variable, regenerates data, and trains a fresh model.
-Compare runs using `val_acc` in TensorBoard (`tensorboard --logdir=./logs`).
+> The local setup has only been tested on Fedora 44.  The Docker workflow above is
+> recommended for all other systems.
 
-### Experiment A — Image encoding
+### 1. System dependencies
 
-Controls how the sparse matrix is compressed into the 64×64 CNN input image.
+```bash
+sudo dnf install openblas-devel python3-devel
+```
 
-| `IMAGE_MODE` | Pixel value | What the CNN sees |
+### 2. Create a virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install Python packages
+
+petsc4py must be installed **after** PETSc and is excluded from `requirements.txt`.
+Install it separately after everything else:
+
+```bash
+# Install all other dependencies
+pip install -r requirements.txt
+
+# Install PETSc first, then petsc4py against it
+pip install petsc==3.25.1
+pip install petsc4py==3.25.1 --no-build-isolation
+```
+
+### 4. Run scripts directly
+
+Scripts live in `experiments/thesis_experiments/` and `experiments/mm_baseline/`.
+Environment variables replace the Docker compose defaults:
+
+```bash
+cd experiments/thesis_experiments
+
+# Generate data
+N_SAMPLES=5000 IMAGE_MODE=magnitude python generate.py
+
+# Train
+EXPERIMENT=local_run IMAGE_MODE=magnitude python train.py
+
+# Evaluate
+EXPERIMENT=local_run python evaluate.py
+```
+
+---
+
+## Image encodings
+
+14 encoding modes are evaluated, each producing a single-channel image of the sparse matrix:
+
+| Mode | Pixel value |
+|---|---|
+| `binary` | 1 if any non-zero in block, else 0 |
+| `density` | non-zero count per block / block area |
+| `log_density` | log(1 + density), normalised |
+| `magnitude` | mean absolute entry value per block, normalised |
+| `sign` | mean sign per block |
+| `signed_magnitude` | signed mean entry per block, normalised |
+| `symmetry` | local symmetry score per block |
+| `diagonal` | emphasis on diagonal blocks |
+| `rcm_binary` | `binary` after Reverse Cuthill–McKee reordering |
+| `rcm_density` | `density` after RCM |
+| `rcm_log_density` | `log_density` after RCM |
+| `rcm_magnitude` | `magnitude` after RCM |
+| `rcm_sign` | `sign` after RCM |
+| `rcm_signed_magnitude` | `signed_magnitude` after RCM |
+
+Dual-channel experiments set both `IMAGE_MODE` and `IMAGE_MODE2` to use two encodings in parallel.
+
+---
+
+## Experimental campaigns
+
+| Campaign | Name | Features | Model | Image modes | Resolution | Penalty |
+|---|---|---|---|---|---|---|
+| C1 | Single-Channel Baseline | 14 | Small (~0.5M) | All 14 modes | 64 px + 128 px | none |
+| C2 | Extended Features + Penalty | 20 | Large (~2M) | All 14 modes | 64 px only | λ=1.0 |
+| C3 | Dual-Channel Approach | 14 | Large (~2M) | 7 modes → 21 pairwise combos | 64 px only | none |
+| C4 | Dual-Channel + Extended Features | 20 | Large (~2M) | selected pairs → 30 models | 64 px + 128 px | λ=1.0 |
+| C5 | Ensemble | 20 | — | 4 C4 models averaged | 128 px | — |
+
+**C1** establishes a clean baseline: 14 image modes each at 64 px and 128 px, small model, no penalty.
+
+**C2** addresses weaknesses found in C1 by expanding features from 14 to 20 and adding the convergence penalty (λ=1.0) to reduce failure rates. Large model, 64 px only.
+
+**C3** introduces the dual-channel CNN. Six high-performing modes from C1 plus the `sign` mode (7 total) are combined into all 21 pairwise combinations. Large model, 64 px, no penalty.
+
+**C4** combines dual-channel with C2's improvements (20 features, λ=1.0, large model). Mode pairs are selected based on C2 F1 performance and run at both 64 px and 128 px, giving 15 combinations × 2 sizes = 30 models.
+
+**C5** averages the softmax outputs of independently trained models (no retraining). Two ensembles are evaluated:
+
+C3 ensemble (four members, all 64 px):
+- `magnitude + signed_magnitude`
+- `magnitude + rcm_signed_magnitude`
+- `magnitude + symmetry`
+- `rcm_magnitude + signed_magnitude`
+
+C4 ensemble (four members, all 128 px):
+- `magnitude + log_density`
+- `magnitude + rcm_log_density`
+- `rcm_magnitude + rcm_signed_magnitude`
+- `symmetry + log_density`
+
+---
+
+## Key results
+
+| Method | Acc % | Macro F1 % |
 |---|---|---|
-| `binary` | 0 or 1 | Only position of non-zeros |
-| `density` | count / block area | How many non-zeros per region |
-| `log_density` | log(1 + count), normalised | Density with compressed dynamic range |
-| `magnitude` | mean \|value\|, normalised | Magnitude of entries per region |
+| MM-AutoSolver (paper, Xiong et al. 2025) | 78.54 | 62.53 |
+| C1 best: `magnitude_64` | 64.19 | 63.42 |
+| C2 best: `magnitude_64` | 64.29 | 63.38 |
+| C5 ensemble (four C4 models, 128 px) | — | **66.77** |
 
-```bash
-# Run all four — each writes to a separate data and checkpoint directory
-for MODE in binary density log_density magnitude; do
-  IMAGE_MODE=$MODE N_SAMPLES=10000 DATA_DIR=./data/$MODE python generate_data.py
-  IMAGE_MODE=$MODE DATA_DIR=./data/$MODE CHECKPOINT_DIR=./checkpoints/$MODE \
-    LOG_DIR=./logs/$MODE MAX_EPOCHS=200 python train_solver_selector.py
-done
-
-# Compare in TensorBoard
-tensorboard --logdir=./logs   # open http://localhost:6006
-```
-
-Expected result: `log_density` and `density` outperform `binary` for large matrices
-because the CNN can see how *dense* each region is, not just whether it is occupied.
+The C5 ensemble surpasses the MM-AutoSolver approach by approximately 4 percentage points
+in macro F1, on a harder and more balanced dataset (9,711 matrices, capped at 600 per class).
+The lower accuracy relative to the paper reflects the harder dataset rather than worse prediction quality.
 
 ---
 
-### Experiment B — Feature ablation
+## Solver-preconditioner pairs (19 classes)
 
-Train on the full 14-feature vector, then retrain with reduced sets to see which
-features matter most.  Edit `matrix_features()` in `model.py` to zero out or remove
-individual features, or add new ones (e.g. exact eigenvalues via
-`scipy.sparse.linalg.eigs`).
+The 19 classification targets are PETSc KSP+PC combinations that emerged as dataset winners:
 
-```bash
-# Baseline — all 14 features
-DATA_DIR=./data CHECKPOINT_DIR=./checkpoints/full_features \
-  LOG_DIR=./logs/full_features python train_solver_selector.py
-
-# Check which features correlate with label in the browser
-DATA_DIR=./data python browse_data.py   # → [View] → Features panel
-```
-
-The features most likely to matter for solver selection:
-- `spectral rad.` and `log cond.` — directly determine Krylov convergence rates
-- `symmetry` — determines which KSP types are applicable
-- `diag dom.` + `bandwidth/n` — determine how effective ILU/ICC preconditioners are
-
----
-
-### Experiment C — Dataset composition
-
-Compare models trained on different data sources.
-
-```bash
-# Synthetic only (fast, reproducible)
-N_SAMPLES=50000 DATA_DIR=./data/synthetic python generate_data.py
-
-# SuiteSparse only (real-world, download required)
-MODE=auto N_MATRICES=500 DATA_DIR=./data/suitesparse python ingest_suitesparse.py
-
-# Mixed — generate synthetic first, then append SuiteSparse
-N_SAMPLES=50000 DATA_DIR=./data/mixed python generate_data.py
-MODE=auto N_MATRICES=500 DATA_DIR=./data/mixed python ingest_suitesparse.py
-```
-
-Train and compare `val_acc` across the three datasets.  A model trained only on
-synthetic data that generalises well to SuiteSparse matrices validates that the
-synthetic generators capture the relevant structural variation.
-
----
-
-### Experiment D — Solver + preconditioner label space
-
-The label space is 30 `(KSP, PC)` pairs (6 solvers × 5 preconditioners).
-To compare against the simpler 6-solver baseline, check out an earlier commit
-before the preconditioner expansion, regenerate data, and train.
-
-Alternatively, collapse predictions back to KSP type only at inference time
-to measure how often the model picks the right *solver family* regardless of
-which preconditioner it recommends:
-
-```python
-from model import SOLVER_PAIRS, SOLVER_NAMES
-import numpy as np
-
-# probs is the (30,) output of predict_solver()
-ksp_probs = {}
-for i, (ksp, pc) in enumerate(SOLVER_PAIRS):
-    ksp_probs[ksp] = ksp_probs.get(ksp, 0.0) + probs[i]
-
-best_ksp = max(ksp_probs, key=ksp_probs.get)
-print("Best KSP family:", best_ksp)
-print("Best pair:      ", SOLVER_NAMES[np.argmax(probs)])
-```
+`cr+ilu`, `cg+eisenstat`, `cg+bjacobi`, `fbcgsr+jacobi`, `gmres+gamg`, `fgmres+gamg`,
+`cg+ilu`, `cr+jacobi`, `minres+gamg`, `fbcgsr+ilu`, `cr+eisenstat`, `bcgsl+none`,
+`symmlq+icc`, `bcgsl+asm`, `dgmres+none`, `cgs+gamg`, `fcg+gamg`, `symmlq+jacobi`, `symmlq+sor`
 
 ---
 
 ## References
 
-See `thesis/workdir/bibliography.bib`.
+Full bibliography: `thesis/workdir/bibliography.bib`.
