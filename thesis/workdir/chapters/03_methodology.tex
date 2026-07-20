@@ -165,7 +165,7 @@ comparison under the paper's original feature assumptions.
 
 \begin{table}[H]
   \centering
-  \caption{17 numerical features used in MM-AutoSolver~\cite{xiong2025mmautosolver} (Table~2).}
+  \caption{17 numerical features used in MM-AutoSolver~\cite{xiong2025mmautosolver}.}
   \label{tab:features-mm}
   \begin{tabular}{clp{7cm}}
     \toprule
@@ -242,7 +242,7 @@ Feature 18 encodes whether the non-zero structure is grid-like or unstructured, 
 
 \begin{table}[H]
   \centering
-  \caption{The 6 additional matrix features introduced in Campaign~2, expanding the feature vector from 14 to 20 entries.}
+  \caption[Six additional matrix features introduced in Campaign~2.]{The 6 additional matrix features introduced in Campaign~2, expanding the feature vector from 14 to 20 entries.}
   \label{tab:features-6}
   \begin{tabular}{cll}
     \toprule
@@ -268,9 +268,9 @@ This reordering is applied solely for image generation and is not passed to the 
 
 \begin{table}[h]
   \centering
-  \caption{The 14 image modes evaluated in the single-channel experiments. The six \texttt{rcm\_*} variants apply Reverse Cuthill--McKee reordering to the matrix before rendering with the corresponding base mode.}
+  \caption[The 14 image modes evaluated in the single-channel experiments.]{The 14 image modes evaluated in the single-channel experiments. The six \texttt{rcm\_*} variants apply Reverse Cuthill--McKee reordering to the matrix before rendering with the corresponding base mode.}
   \label{tab:image-modes}
-  \begin{tabular}{ll}
+  \begin{tabular}{lp{8.5cm}}
     \toprule
     \textbf{Mode} & \textbf{Description} \\
     \midrule
@@ -283,7 +283,7 @@ This reordering is applied solely for image generation and is not passed to the 
     \texttt{symmetry}         & $|A - A^\top|$ per cell, normalised to $[0,1]$ \\
     \texttt{diagonal}         & Off-diagonal entries $= 0.5$, diagonal entries $= 1.0$ \\
     \midrule
-    \texttt{rcm\_binary}           & \multirow{6}{*}{\parbox{7cm}{RCM-reordered variants of the above modes. Reverse Cuthill--McKee reordering reduces matrix bandwidth before rendering, grouping structurally related entries closer to the diagonal.}} \\
+    \texttt{rcm\_binary}           & \multirow{6}{*}{\parbox{8.5cm}{RCM-reordered variants of the above modes. Reverse Cuthill--McKee reordering reduces matrix bandwidth before rendering, grouping structurally related entries closer to the diagonal.}} \\
     \texttt{rcm\_density}          & \\
     \texttt{rcm\_log\_density}     & \\
     \texttt{rcm\_magnitude}        & \\

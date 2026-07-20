@@ -7,7 +7,9 @@
 
 Iterative methods for sparse linear systems construct a sequence of approximations to the
 solution of $Ax = b$ by building a Krylov subspace
-$\mathcal{K}_k(A, r_0) = \operatorname{span}\{r_0,\, Ar_0,\, \ldots,\, A^{k-1}r_0\}$
+\[
+  \mathcal{K}_k(A, r_0) = \operatorname{span}\{r_0,\, Ar_0,\, \ldots,\, A^{k-1}r_0\}
+\]
 from the initial residual $r_0$.
 The Conjugate Gradient method (CG) is the standard choice for symmetric positive definite
 systems, while methods such as GMRES, FGMRES, DGMRES, BiCGStab, and BiCGStabl handle
@@ -43,9 +45,9 @@ vector machines or random forests on hand-crafted matrix statistics, learning th
 from matrix properties to optimal solver configurations directly from benchmark data.
 
 More recent work extends this idea to richer input representations.
-MM-AutoSolver~\cite{xiong2025mmautosolver} supplements scalar matrix features with a CNN
-branch processing a visual rendering of the sparsity pattern, improving accuracy over
-feature-only baselines.
+Xiong et al.~\cite{xiong2025mmautosolver} propose MM-AutoSolver, which supplements scalar
+matrix features with a CNN branch processing a visual rendering of the sparsity pattern,
+improving accuracy over feature-only baselines.
 Weng et al.~\cite{weng2026embedding} take a different direction with an embedding-based
 framework that learns solver-problem relationships directly from observed performance data,
 achieving substantial improvements over classical feature-based models across a broad set
@@ -63,8 +65,8 @@ predicts one of 19 fixed solver-preconditioner pairs from PETSc~\cite{dalcin2011
 The CNN uses two convolutional layers with Tanh activations and $3 \times 3$ and
 $5 \times 5$ kernels respectively, trained with Adam ($\text{lr} = 10^{-3}$,
 256 epochs, batch size 512).
-On a dataset of 11{,}623 matrices from the SuiteSparse collection~\cite{davis2011university} the model achieves Acc\,=\,78.54\,\%,
-MP\,=\,63.41\,\%, MR\,=\,62.81\,\%, and F1\,=\,62.53\,\%.
+Evaluated on 11{,}623 matrices from the SuiteSparse collection~\cite{davis2011university},
+the model achieves Acc\,=\,78.54\,\%, MP\,=\,63.41\,\%, MR\,=\,62.81\,\%, and F1\,=\,62.53\,\%.
 This thesis independently replicates MM-AutoSolver on a custom dataset~(\autoref{sec:mm-replication})
 and extends the approach by systematically evaluating 14 different image encoding strategies,
 dual-channel CNN inputs, and ensemble methods.
