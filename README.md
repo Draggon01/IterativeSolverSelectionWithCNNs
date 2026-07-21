@@ -90,6 +90,24 @@ EXPERIMENT=my_run docker compose run predict
 docker compose up tensorboard   # open http://localhost:6006
 ```
 
+For running a full grid of experiments (all modes × sizes), use `run_experiments.sh`
+instead of calling `docker compose run` manually:
+
+```bash
+# All 14 modes × 64px + 128px, 256 epochs (full Campaign 1/2 run)
+./run_experiments.sh
+
+# Dual-channel pairs on top of an existing base dataset
+SKIP_DATAGEN=1 MODES="" SIZES="" \
+DUAL_MODES="magnitude+signed_magnitude magnitude+symmetry" DUAL_SIZES="64" \
+  ./run_experiments.sh
+
+# Quick test run
+N_SAMPLES=50 MAX_EPOCHS=20 MODES="magnitude" SIZES="64" ./run_experiments.sh
+```
+
+See `experiments/thesis_experiments/Documentation.md` for the full variable reference.
+
 Key environment variables for the trainer:
 
 | Variable | Default | Description |

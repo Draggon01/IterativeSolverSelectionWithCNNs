@@ -1,1 +1,31 @@
-.idea
+# IDE
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.pytest_cache/
+
+# Generated data, checkpoints and logs (large, not for version control)
+experiments/thesis_experiments/data/
+experiments/thesis_experiments/checkpoints/
+experiments/thesis_experiments/logs/
+experiments/thesis_experiments/viz/
+experiments/mm_baseline/data/
+experiments/mm_baseline/checkpoints/
+experiments/mm_baseline/logs/
+experiments/mm_baseline/viz/
+experiments/shared/cache/
+
+# Backup files created by dataset utilities
+*.bak
+
+# LaTeX build artifacts
+thesis/workdir/build/
+
+# OS
+.DS_Store

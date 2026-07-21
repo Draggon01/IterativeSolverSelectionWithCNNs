@@ -2,13 +2,13 @@
 ensemble_evaluate.py — Evaluate an ensemble of trained models by averaging softmax outputs.
 
 Reads images from a pre-rendered multimode HDF5 (data/multimode/dataset.h5). If the file
-is missing or lacks any required mode, render_multimode.py is run automatically first.
+is missing or lacks any required mode, render.py is run automatically first (multimode mode).
 
 Environment variables:
   EXPERIMENTS      Space-separated experiment names to ensemble
   MULTIMODE_DIR    Directory containing the multimode dataset.h5
                    (default: /workspace/data/multimode)
-  SRC_DATA_DIR     Base dataset for render_multimode if needed
+  SRC_DATA_DIR     Base dataset for render.py if needed
                    (default: /workspace/data/base)
   IMAGE_SIZE       Image size used when auto-rendering  (default: 64)
   CHECKPOINT_DIR   Checkpoint root  (default /workspace/checkpoints)
@@ -146,12 +146,12 @@ def run_inference(
     if key1 not in f:
         raise KeyError(
             f"Mode '{mode1}' not found in multimode dataset (key '{key1}'). "
-            f"Re-run render_multimode with MODES including '{mode1}'."
+            f"Re-run render with MODES including '{mode1}'."
         )
     if key2 and key2 not in f:
         raise KeyError(
             f"Mode '{mode2}' not found in multimode dataset (key '{key2}'). "
-            f"Re-run render_multimode with MODES including '{mode2}'."
+            f"Re-run render with MODES including '{mode2}'."
         )
 
     all_probs = []
@@ -190,7 +190,7 @@ def run_inference(
 
 
 def ensure_multimode(needed_modes: list[str]) -> None:
-    """Run render_multimode.py to add any missing modes to the multimode HDF5."""
+    """Run render.py (multimode) to add any missing modes to the multimode HDF5."""
     multimode_h5 = os.path.join(MULTIMODE_DIR, "dataset.h5")
 
     if os.path.exists(multimode_h5):
@@ -216,10 +216,10 @@ def ensure_multimode(needed_modes: list[str]) -> None:
     env["IMAGE_SIZE"]   = str(IMAGE_SIZE)
     env["MODES"]        = " ".join(missing)   # only render what's actually missing
 
-    script = os.path.join(os.path.dirname(__file__), "render_multimode.py")
+    script = os.path.join(os.path.dirname(__file__), "render.py")
     result = subprocess.run([sys.executable, script], env=env)
     if result.returncode != 0:
-        raise RuntimeError("render_multimode.py failed — check output above.")
+        raise RuntimeError("render.py failed — check output above.")
 
 
 def main() -> None:
