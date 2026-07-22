@@ -12,10 +12,12 @@ Detailed results and metric comparisons are evaluated in \autoref{chapter:result
 To ensure reproducibility, the whole pipeline runs within a Docker environment.
 The pipeline includes distinct scripts for data generation, model training and model evaluation.
 The training data is stored in HDF5 file format to enable fast access, and is shared across experiments unless stated otherwise.
-Its generation was performed on an AMD Ryzen AI 7 350 / Radeon 860 and an AMD Ryzen 5 1600 Six-Core, described in more detail in \autoref{sec:dataset} %todo get connection to my home machine back and fill the actual name.
+Its generation was performed on an AMD Ryzen AI 7 350 and an AMD Ryzen 5 1600 Six-Core, described in more detail in \autoref{sec:dataset}
 Checkpoints and logs are namespaced by experiment name and image size, allowing multiple runs to coexist without overwriting.
 The training of the model for the different experiments was done on an NVIDIA GeForce RTX 5060 Laptop GPU.
 All runs use a fixed random seed for reproducibility.
+No special CPU configurations were done during data generation, since all solvers for a given matrix are benchmarked sequentially in the same process, core allocation variability affects their timings equally for a given matrix.
+However, absolute timings and winner assignments remain hardware-dependent, and parallel solver configurations in particular may produce different results on machines with different core counts or memory layouts.
 
 The full source code, configuration files, experiment logs and LaTeX sources that were used for the thesis are publicly available on GitHub under the "Thesis-Submission" Release \footnote{\url{...}}
 %todo before the last hand-in add the correct link to the github repository and make it public.
@@ -39,7 +41,7 @@ Macro averaging is used rather than weighted averaging to treat all solver class
 
 If a predicted solver-preconditioner pair is not the best result but comes in as a close second, it will not be recognised
 for the accuracy, which may not be ideal when targeting the implementation of the models within a specific pipeline.
-For this case two separate metrics are introduced, which also give positive feedback if the chosen solver-preconditioner
+For this case four additional metrics are introduced, which also give positive feedback if the chosen solver-preconditioner
 pair is only marginally slower, just the second-best choice, or is extremely failure-resistant.
 
 \begin{itemize}
@@ -51,10 +53,9 @@ pair is only marginally slower, just the second-best choice, or is extremely fai
 
 \subsection{Computational Cost}\label{subsec:compute-cost}
 
-Other metrics that need to be introduced regard the time cost within data generation,
-model training and per-matrix feature and image generation.
-Therefore, training time and inference costs are also logged for each experiment and can be seen in corresponding summary files.
-For the data generation, no specific time cost was logged.
+Training time and per-matrix inference cost (feature extraction and image rendering) are also recorded for each experiment.
+Data generation time was not tracked.
+These are reported in \autoref{chapter:results} alongside the classification metrics.
 
 \subsection{Non-Learning Baselines}\label{subsec:baselines}
 
@@ -71,7 +72,8 @@ value to be assessed independently of the feature branch.
 
 The first experiment replicates the results of the MM-AutoSolver~\cite{xiong2025mmautosolver} paper with a dataset that resembles the
 dataset from the paper in solver-preconditioner distribution.
-Due to the computational cost of benchmarking all 19 solver pairs, which scales significantly with matrix size, the replication dataset is limited to matrices with up to 84{,}617 rows, compared to over one million in the original paper.
+Due to the high computational cost of the benchmarking process for the 19 solver-preconditioner pairs that also scales significantly with matrix size,
+the replication dataset is limited to matrices with up to 84{,}617 rows, compared to over one million rows in the original paper.
 Table~\ref{tab:replication-distribution} compares the per-class sample counts of the replication dataset against the actual numbers of the paper.
 
 Since the generator buckets were less targeted in the early stages, generation of certain classes took a significant amount of time.
@@ -141,7 +143,7 @@ Convergence penalty is deactivated and the small model~(\autoref{sec:architectur
 \subsection{Campaign 2: Extended Features and Convergence Penalty}\label{subsec:campaign2}
 
 Campaign 2 addresses two weaknesses observed in Campaign 1.
-Some solvers had especially low accuracy and F1 values; an additional 6 features described in \autoref{tab:features-6} were therefore introduced.
+Some solvers had especially low accuracy and F1 values. An additional 6 features described in \autoref{tab:features-6} were therefore introduced.
 To reduce high failure rates observed in certain classes, the convergence penalty~(\autoref{sec:training}) with $\lambda = 1.0$ is used.
 The whole experiment is run on the large model~(\autoref{sec:architecture}) and uses the same image modes as Campaign 1 but only an image size of 64\,px.
 
@@ -161,7 +163,7 @@ The file stores one dataset per image mode under the key \texttt{images\_<mode>}
 
 The experiment setup is similar to the one in Campaign 1, except this time a different set of image modes and the large model~(\autoref{sec:architecture}) are used and
 the image sizes are fixed at 64\,px.
-Six high-performing image modes are selected from Campaign~1~(\autoref{subsec:campaign1}) based on F1 score, together with the sign mode.
+Six image modes are selected from Campaign~1~(\autoref{subsec:campaign1}) based on F1 score and complementary information content, together with the sign mode.
 These 7 methods are then combined into all their pairwise combinations and tested.
 This results in 21 different image mode combinations that can be seen in Table~\ref{tab:results-campaign3}.
 
@@ -175,8 +177,7 @@ This results in 15 different image mode combinations each run at two image sizes
 
 \subsection{Campaign 5: Ensemble Method}\label{subsec:ensemble-method}
 
-The ensemble combines independently trained models by averaging their softmax probability
-vectors before taking the argmax prediction.
+The ensemble combines independently trained models by averaging their predicted class probabilities before taking the final prediction.
 No retraining is required as the member models are loaded from their saved checkpoints and are
 evaluated on the shared validation split.
 

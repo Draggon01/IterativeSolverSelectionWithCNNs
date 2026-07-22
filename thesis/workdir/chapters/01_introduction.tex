@@ -7,8 +7,9 @@
 
 Linear systems of equations in the form $Ax=b$ arise across nearly every domain in computer science, from structural mechanics and fluid dynamics to machine learning and network analysis.
 While small systems can be solved directly with Gaussian elimination in \(\mathcal{O}(n^3)\) time, real-world problems often generate sparse matrices with thousands or millions of unknowns where direct methods become unfeasible.
-Such matrices are called sparse because the vast majority of their $n^2$ entries are zero; only a small fraction $\text{nnz} \ll n^2$ are non-zero.
-Iterative solvers, such as Conjugate Gradient (CG), Generalized Minimal Residual (GMRES), or Flexible Generalized Minimal Residual (FGMRES), are practical alternatives; they exploit sparsity and can converge in far fewer operations than their counterparts, but their performance depends on the combination of solver and preconditioner chosen for a given problem.
+Such matrices are called sparse because the vast majority of their $n^2$ entries are zero, only a small fraction $\text{nnz} \ll n^2$ are non-zero.
+Iterative solvers, such as Conjugate Gradient (CG), Generalized Minimal Residual (GMRES), or Flexible Generalized Minimal Residual (FGMRES), are practical alternatives.
+They exploit sparsity and can converge in far fewer operations than direct methods, but their performance for a given problem depends on the chosen combination of solver and preconditioner.
 
 Selecting the best solver-preconditioner pair for a concrete problem is not easy.
 A configuration that converges in hundreds of iterations for a symmetric positive definite system from a finite-element discretisation may stagnate entirely on an indefinite or non-symmetric problem.
@@ -19,7 +20,7 @@ Automating or improving this selection step is therefore an important open probl
 
 Recent work has shown that machine learning models can predict good solver--preconditioner pairs from matrix properties alone.
 In particular, Xiong et al.\ \cite{xiong2025mmautosolver} proposed \emph{MM-AutoSolver}, a multimodal CNN+MLP framework that encodes both a sparsity-pattern image and a hand-crafted feature vector to classify the best solver.
-They report 78.54\% accuracy on a benchmark dataset of 11{,}623 matrices from the SuiteSparse collection~\cite{davis2011university}.
+They report 78.54\% accuracy on a benchmark dataset of 11{,}623 matrices, including real-world application matrices from SuiteSparse~\cite{davis2011university}, FreeFEM~\cite{hecht2012freefem}, and OpenFOAM~\cite{weller1998tensorial}.
 Weng et al.~\cite{weng2026embedding} take a complementary approach, learning solver--problem relationships directly from observed performance data rather than engineering features by hand.
 A detailed survey of both works is given in \autoref{chapter:related-work}.
 
@@ -27,9 +28,9 @@ Several gaps remain in the MM-AutoSolver approach, however:
 
 \begin{itemize}
   \item \textbf{Limited feature study.} MM-AutoSolver uses 17 fixed features; the sensitivity to feature choice and the benefit of additional structural descriptors (e.g.\ diagonal dominance variance, structural symmetry) has not been studied.
-  \item \textbf{Single image mode.} Only a density representation at 128\,px is evaluated; it is unknown whether other encodings (magnitude, sign, RCM-reordered variants) carry complementary information.
+  \item \textbf{Single image mode.} Only a density representation at 128\,px is evaluated, it is unknown whether other encodings (magnitude, sign, RCM-reordered variants) carry complementary information.
   \item \textbf{No multi-channel fusion.} Combining two image modes as a dual-channel input has not been explored.
-  \item \textbf{Convergence failures unpenalised.} Standard cross-entropy loss does not discourage predictions that select non-converging solvers; failure rates up to 75\% were observed in preliminary experiments.
+  \item \textbf{Convergence failures unpenalised.} Standard cross-entropy loss does not discourage predictions that select non-converging solvers, which may lead to costly timeouts in practice.
   \item \textbf{No ensemble evaluation.} The benefit of averaging predictions from multiple independently trained models has not been quantified.
 \end{itemize}
 
@@ -38,11 +39,11 @@ Several gaps remain in the MM-AutoSolver approach, however:
 This thesis pursues the following goals:
 
 \begin{enumerate}
-  \item \textbf{Replication.} Re-implement MM-AutoSolver as a controlled baseline to verify and contextualise the reported results on an independently generated dataset.
-  \item \textbf{Feature engineering.} Extend the feature set from 14 to 20 matrix descriptors and measure the impact on classification accuracy.
+  \item \textbf{Replication.} Re-implement MM-AutoSolver as a controlled baseline to verify and contextualize the reported results on an independently generated dataset.
+  \item \textbf{Feature engineering.} Choose a different set of 14 base matrix descriptors than MM-AutoSolver and extend it to 20, measuring the impact on classification accuracy.
   \item \textbf{Image mode study.} Train and compare 14 single-channel image representations (binary, density, magnitude, sign, symmetry, diagonal, signed\_magnitude, and their RCM-reordered counterparts) at 64\,px and 128\,px.
-  \item \textbf{Dual-channel CNN.} Fuse pairs of the best-performing modes into a two-channel input and evaluate 21 pairwise combinations in Campaign~3 and 15 in Campaign~4 at both resolutions.
-  \item \textbf{Convergence penalty.} Introduce a loss term that penalises probability mass assigned to non-converging solvers and evaluate its effect on failure rate.
+  \item \textbf{Dual-channel CNN.} Fuse pairs of the best-performing modes into a two-channel input and evaluate pairwise combinations at different resolutions.
+  \item \textbf{Convergence penalty.} Introduce a loss term that penalizes probability mass assigned to non-converging solvers and evaluate its effect on failure rate.
   \item \textbf{Ensemble evaluation.} Average softmax outputs from multiple top models and measure the accuracy gain over any individual model.
 \end{enumerate}
 

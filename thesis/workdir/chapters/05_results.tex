@@ -3,7 +3,7 @@
 
 \chapter{Results and Evaluation}\label{chapter:results}
 
-This chapter presents and interprets the quantitative outcomes of the experiments described in \autoref{chapter:experiments}.
+This chapter presents and interprets the outcomes of the experiments described in \autoref{chapter:experiments}.
 Each section addresses one research dimension: image mode choice, feature engineering, single- vs.\ dual-channel, image resolution, and ensembling,
 before placing the best results in context with the MM-AutoSolver baseline.
 
@@ -117,13 +117,12 @@ This had no significant impact in single-channel model results as values in most
 The worst-performing modes consist of those that only regard structural features like binary and diagonal
 and do not incorporate any magnitude information, confirming that entry values carry essential information for solver selection.
 The six highest-ranking modes by F1 - \texttt{magnitude}, \texttt{rcm\_signed\_magnitude}, \texttt{rcm\_magnitude},
-\texttt{signed\_magnitude}, \texttt{symmetry}, and \texttt{density} (128\,px) - are therefore carried forward as the basis
+\texttt{signed\_magnitude}, \texttt{symmetry}, and \texttt{density} - are therefore carried forward as the basis
 for the dual-channel experiments in Campaign~3~(\autoref{subsec:campaign3}).
 
-%todo move to conclusion probably
 The results also show that if a model with exceptional speed needs to be selected, in most cases it won't be the model with the
 highest accuracy or the best F1 value.
-In Campaign~1 for example, \texttt{magnitude\_64} achieves the best accuracy and F1, but \texttt{signed\_magnitude\_64} achieves a lower MRT$\times$ of $1.069$ versus $1.259$, making it a better choice when runtime ratio is the priority.
+In Campaign~1 for example, \texttt{magnitude\_64} achieves the best accuracy and F1, but \texttt{signed\_magnitude\_64} has a lower mean runtime ratio (1.069 vs.\ 1.259), making it the better choice when minimising runtime overhead is the priority.
 
 \section{Impact of Feature Engineering and Convergence Penalty}\label{sec:results-features}
 
@@ -155,7 +154,7 @@ the overall failure rate back to previous levels.
 A likely explanation is that the convergence penalty suppressed other high-failure classes, as discussed further below,
 causing their probability mass to be redistributed towards solvers such as \texttt{symmlq+sor}.
 
-This behaviour is reproduced in the other models as well, therefore the penalty approach needs to be examined closely as to
+This behaviour is reproduced in the other models as well, therefore the penalty approach needs to be examined as to
 not only provide a shift in failure rates but realistic improvement.
 
 \paragraph{Density side-effect}
@@ -183,7 +182,7 @@ The best single-channel model, \texttt{magnitude\_64} (Table~\ref{tab:results-ca
 The best overall model is \texttt{magnitude\_\_rcm\_log\_density\_128} with 66.56\% accuracy, a 2.27\,\% improvement
 over the best single-channel approach.
 
-The size of the gain depends strongly on which two channels are chosen; when their information encodes different properties
+The size of the gain depends strongly on which two channels are chosen. When their information encodes different properties
 they excel the most.
 This can be seen by the combination of \texttt{magnitude} (absolute values) with \texttt{log\_density} (structural density) or \texttt{rcm\_log\_density} (density after bandwidth reduction).
 Pairs with similar information like \texttt{rcm\_log\_density\_\_log\_density\_128} (two log-family channels) often drop even below some single-channel approaches
@@ -192,7 +191,7 @@ if their single-channel performance was already weak.
 This confirms that a second channel is useful but only if the two downsampling methods contain non-redundant information.
 
 Across all dual-channel experiments the most important channel is \texttt{magnitude}, as it consistently appears in the best
-dual-channel pairs, confirming that magnitude encodes discriminative information essential for solver selection.
+dual-channel pairs, reaffirming that magnitude encodes discriminative information essential for solver selection.
 
 
 \subsection{Dual-Channel Results Overview}\label{subsec:dual-chan-results}
@@ -319,7 +318,7 @@ In the dual-channel experiment with 64 and 128\,px images, shown in \autoref{tab
 brings a consistent improvement of 0.5--1.3\,\% in accuracy and F1 values across all 15 mode pairs.
 The largest gain is seen in \texttt{magnitude+rcm\_log\_density}, where accuracy improves by 1.13\,\% and F1 by 0.79\,\%.
 The smallest gain is on \texttt{magnitude+log\_density}, where accuracy stays the same and only F1 increases by 0.58\,\%.
-No pair degrades at higher resolution.
+Almost all pairs improve or remain stable at higher resolution.
 
 The cost of the higher resolution is a $4\times$ increase in inference time, as the dual-channel 64\,px model runs at approximately 2.8\,ms/sample and the
 128\,px model takes about 10.9\,ms/sample.
@@ -335,11 +334,11 @@ fine spatial arrangement of non-zeros.
 % ── Ensembles: Campaign 3 and Campaign 4 ─────────────────────────────────────
 \begin{table}[H]
   \centering
-  \caption{Campaign~5 - Ensemble results: softmax-averaging of four independently trained dual-channel models.
-           \emph{Campaign~3}: 14 features, 64\,px, no penalty; members are
+  \caption{Campaign~5 - Ensemble results: averaging of four independently trained dual-channel models.
+           \emph{Campaign~3}: 14 features, 64\,px, no penalty. Members are
            \texttt{mag+signed\_mag}, \texttt{mag+rcm\_signed\_mag},
            \texttt{mag+symmetry}, \texttt{rcm\_mag+signed\_mag}.
-           \emph{Campaign~4}: 20 features, 128\,px, $\lambda=1.0$; members are
+           \emph{Campaign~4}: 20 features, 128\,px, $\lambda=1.0$. Members are
            \texttt{mag+log\_density}, \texttt{mag+rcm\_log\_density},
            \texttt{rcm\_mag+rcm\_signed\_mag}, \texttt{symmetry+log\_density}.
            Bold marks the column best.}
@@ -389,13 +388,12 @@ while trailing in accuracy (67.29\% vs.\ 67.39\%).
 This comes at notably higher inference cost, running at approximately 46.5\,ms/sample —
 roughly $4\times$ slower than the Campaign~3 ensemble ($\approx$12\,ms) — due to the 128\,px images.
 
-\paragraph[Inference cost.]{Inference cost.}
+\paragraph{Inference cost.}
 The ensemble multiplies inference time by the number of members ($4\times$).
 At $\approx$12\,ms/sample for four dual-channel 64\,px models (Campaign~3) and
 $\approx$46.5\,ms/sample for four dual-channel 128\,px models (Campaign~4), the
 prediction overhead remains negligible compared to typical iterative solver runtimes
 which range from tens of milliseconds to several seconds per solve.
-
 
 \section{Comparison to MM-AutoSolver}\label{sec:comparison-mm}
 
@@ -407,7 +405,7 @@ may be the result of the slightly different data source~(\autoref{sec:dataset}).
 \begin{table}[H]
   \centering
   \caption{Comparison against MM-AutoSolver~\cite{xiong2025mmautosolver}.
-           Best single: \texttt{magnitude+rcm\_log\_density} at 128\,px (Campaign~4).
+           Best model: \texttt{magnitude+rcm\_log\_density} at 128\,px (Campaign~4).
            Ensemble C3: 4 models, 64\,px, 14 features.
            Ensemble C4: 4 models, 128\,px, 20 features, $\lambda=1.0$.
            Bold marks the best thesis result in each column.}
@@ -419,7 +417,7 @@ may be the result of the slightly different data source~(\autoref{sec:dataset}).
     MM-AutoSolver (paper)              & 78.54 & 63.41 & 62.81 & 62.53 \\
     MM-AutoSolver (replication)        & 81.97 & 62.88 & 61.83 & 60.45 \\
     \midrule
-    This thesis (best single, C4)      & 66.56 & 69.15 & 68.88 & 65.53 \\
+    This thesis (best model, C4)      & 66.56 & 69.15 & 68.88 & 65.53 \\
     This thesis (ensemble C3, 64\,px)  & \textbf{67.39} & 69.47 & \textbf{69.58} & 66.37 \\
     This thesis (ensemble C4, 128\,px) & 67.29 & \textbf{70.37} & 69.48 & \textbf{66.77} \\
     \bottomrule
@@ -433,7 +431,7 @@ The thesis dataset was constructed with a minimal per-class constraint of 250 ma
 resulting in a much flatter distribution and harder problem.
 Second, the training matrices also differ, as the MM-AutoSolver paper uses more real-world application matrices generated
 within FreeFEM~\cite{hecht2012freefem} and OpenFOAM~\cite{weller1998tensorial}.
-In this thesis, only SuiteSparse matrices with real-world applications are used; the remainder consists of synthetically generated ones.
+In this thesis, only SuiteSparse matrices with real-world applications are used, while the remainder consists of synthetically generated ones.
 
 Despite the lower accuracy, the macro-averaged metrics are less sensitive to class distribution and can still be compared.
 The thesis model even achieves around 7\,\% better results in Macro Precision and Macro Recall, meaning that despite the harder
@@ -458,7 +456,7 @@ considerably across the label space.
   \centering
   \caption[Per-class results for the Campaign~4 ensemble.]{Per-class results for the Campaign~4 ensemble (4 models: magnitude+log\_density,
            magnitude+rcm\_log\_density, rcm\_magnitude+rcm\_signed\_magnitude,
-           symmetry+log\_density; 128\,px, $\lambda=1.0$).
+           symmetry+log\_density, 128\,px, $\lambda=1.0$).
            Sorted by F1 descending. N is the number of training samples per class.}
   \label{tab:per-solver-ensemble}
   \begin{tabular}{lrrrrr}
@@ -510,18 +508,9 @@ the next weakest: both are specialised combinations whose winning conditions are
 and hard to separate from neighbouring classes by image alone.
 
 \paragraph{Failure rates.}
-\texttt{cg+ilu} stands out with a 30.5\% failure rate.
-This is likely a side-effect of the convergence penalty interacting with the new ILU-related
-features \texttt{min\_diag\_\allowbreak dominance} and \texttt{diag\_dom\_variance}.
-The penalty reduces failure rates globally but appears to shift prediction errors for borderline
-cases where the new features signal marginal ILU suitability.
-\texttt{symmlq+sor} (15.4\%) and \texttt{cr+ilu} (6.5\%) also carry elevated failure rates,
-as both rely on preconditioners sensitive to spectral properties not fully captured by the
-feature set.
-Ten classes achieve 0\% failure rate:
-\texttt{minres+gamg}, \texttt{cr+eisenstat}, \texttt{gmres+gamg}, \texttt{cr+jacobi},
-\texttt{cg+eisenstat}, \texttt{bcgsl+none}, \texttt{fbcgsr+ilu}, \texttt{dgmres+none},
-\texttt{cgs+gamg}, and \texttt{fgmres+gamg}.
+\texttt{cg+ilu} stands out with a 30.5\% failure rate, while \texttt{symmlq+sor} (15.4\%) and \texttt{cr+ilu} (6.5\%) also carry elevated rates.
+All three rely on preconditioners sensitive to matrix conditioning, making them harder to predict reliably.
+Despite these per-class spikes, the overall ensemble failure rate remains low at 3.92\%.
 
 \section{Practical Inference Cost}\label{sec:inference-cost}
 
@@ -552,5 +541,60 @@ Model inference is fast enough to be negligible compared to actual solver runtim
 The MLP-only baseline runs at under 0.1\,ms per sample, confirming that the scalar feature branch alone imposes negligible overhead.
 Adding the CNN increases latency to around 1--3\,ms for 64\,px models, while 128\,px models are roughly $4\times$ slower, consistent with the fourfold increase in pixel count.
 The dual-channel configuration adds only marginal cost over the equivalent single-channel model (2.8\,ms vs.\ 3.0\,ms at 64\,px), meaning the second image channel comes at almost no additional inference expense.
-The Campaign~4 ensemble is the most expensive configuration at approximately 46.5\,ms per sample, but even this remains well below typical iterative solver runtimes, which commonly run in the range of seconds for the matrix sizes considered in this thesis.
-Prediction overhead is therefore negligible in all configurations.
+
+\paragraph{Full pipeline cost.}
+Model inference alone does not capture the full overhead: feature extraction and image rendering must also be accounted for.
+To illustrate the combined cost, a small timing experiment is conducted on two representative matrix types, a 2D Poisson grid (SPD) and a random non-symmetric matrix, each at two sizes, $n \approx 50\text{k}$ and $n \approx 100\text{k}$.
+This is not a systematic benchmark but a targeted measurement to show where the pipeline time is spent.
+The non-symmetric matrices use 50 non-zeros per row, giving $\text{nnz} \approx 2.6\text{M}$ and $\text{nnz} \approx 5.1\text{M}$ respectively, compared to $\approx 250\text{k}$ and $\approx 500\text{k}$ for the Poisson grids.
+All 19 solvers converge within 10\,s on the SPD matrices and 11 of 19 converge within 10\,s on each non-symmetric matrix, with the remaining 8 either failing to converge or running beyond the 10\,s kill threshold set for this experiment.
+The random baseline simulates picking uniformly at random until a solver converges: each failed attempt costs its detection time (capped at 10\,s), and the expected number of failures before success scales with $n_\text{failed}/n_\text{success}$.
+
+Table~\ref{tab:pipeline-breakdown} shows the complete breakdown for the best-performing models from Campaigns~3 and~4.
+
+\begin{table}[H]
+  \centering
+  \caption{
+    Full pipeline breakdown for \texttt{rcm\_signed\_magnitude\_\_density\_64} (C3, MRT$\times$\,=\,1.063)
+    and \texttt{magnitude\_\_rcm\_log\_density\_128} (C4, MRT$\times$\,=\,1.051) across four test matrices.
+    All times in ms; image rendering covers both channels.
+    Solvers are killed after 10\,s; the random baseline uses a geometric retry model.%
+  }
+  \label{tab:pipeline-breakdown}
+  \resizebox{\textwidth}{!}{
+  \begin{tabular}{lrrrrrrrr}
+    \toprule
+    & \multicolumn{4}{c}{\textbf{C3: rcm\_signed\_magnitude\_\_density\_64 (14 feat, 64\,px)}}
+    & \multicolumn{4}{c}{\textbf{C4: magnitude\_\_rcm\_log\_density\_128 (20 feat, 128\,px)}} \\
+    \cmidrule(lr){2-5}\cmidrule(lr){6-9}
+    & \textbf{SPD 50k} & \textbf{SPD 100k} & \textbf{NS 50k} & \textbf{NS 100k}
+    & \textbf{SPD 50k} & \textbf{SPD 100k} & \textbf{NS 50k} & \textbf{NS 100k} \\
+    \midrule
+    Feature extraction (ms)      &   33 &   23 &    93 & 384    &   521 &   600 &  2{,}617 & 5{,}424 \\
+    Image rendering, 2ch.\ (ms)  &   29 &   55 &   304 & 641    &    28 &    54 &    302 &   631 \\
+    Model inference (ms)         &    3 &    3 &     3 &   3    &    11 &    11 &     11 &    11 \\
+    \midrule
+    \textbf{Pipeline overhead (ms)} & \textbf{65} & \textbf{81} & \textbf{400} & \textbf{1{,}028} & \textbf{560} & \textbf{665} & \textbf{2{,}930} & \textbf{6{,}066} \\
+    Predicted solve, MRT$\times$ (ms) & 108 & 237 &  39 &  55   &  107 &  234 &     38 &    54 \\
+    \textbf{Total (ms)}          & \textbf{173} & \textbf{318} & \textbf{439} & \textbf{1{,}083} & \textbf{667} & \textbf{899} & \textbf{2{,}968} & \textbf{6{,}120} \\
+    \midrule
+    Best solver (ms)             & 102 & 223 &  37 &  51   &  102 &  223 &     37 &    51 \\
+    Random baseline (ms)         & 270 & 1{,}225 & 6{,}468 & 7{,}484 & 270 & 1{,}225 & 6{,}468 & 7{,}484 \\
+    \textbf{Speedup vs.\ random} & \textbf{1.56$\times$} & \textbf{3.85$\times$} & \textbf{14.75$\times$} & \textbf{6.91$\times$}
+                                 & \textbf{0.40$\times$} & \textbf{1.36$\times$} & \textbf{2.18$\times$} & \textbf{1.22$\times$} \\
+    \bottomrule
+  \end{tabular}%
+  }
+\end{table}
+
+The dominant cost in the 20-feature set is feature~16, the structural symmetry fraction, which checks for matching $(i,j)$--$(j,i)$ non-zero pairs using set operations that scale with $\text{nnz}$.
+It accounts for 506\,ms on the sparse SPD 50k matrix, 589\,ms on SPD 100k, and 2.5\,s and 5.2\,s on the two non-symmetric matrices, making it responsible for the vast majority of C4's extraction time in every case.
+The 14-feature set avoids this computation entirely, giving C3 a decisive pipeline advantage.
+
+C3 achieves a positive speedup over random selection in all four cases, ranging from 1.56$\times$ on the well-conditioned SPD 50k matrix to 14.75$\times$ on the non-symmetric 50k matrix where 8 of 19 solvers fail or are killed.
+C4 is slower than random on the small SPD matrix (0.40$\times$), where the 561\,ms overhead alone exceeds the 270\,ms random baseline, but achieves a 1.36$\times$ speedup on the larger one, where solver runtimes are long enough to offset the 664\,ms overhead.
+On non-symmetric matrices C4 recovers a modest speedup (2.18$\times$ and 1.22$\times$), but remains 5--7$\times$ slower than C3 in absolute terms.
+
+Both models were selected for their low MRT$\times$ values (C3: 1.063, C4: 1.051), meaning the predicted solver is only marginally slower than optimal on average, so solver-selection quality is comparable between the two campaigns.
+These results show that the 14-feature pipeline of Campaign~3 offers a better cost-quality trade-off across all tested matrix types and sizes as it consistently beats random selection and keeps the pipeline overhead below 1.1\,s even at $n = 100\text{k}$.
+Campaign~4's 20-feature pipeline is only competitive when expected solver runtimes substantially exceed its extraction overhead, which itself scales with matrix density and size.

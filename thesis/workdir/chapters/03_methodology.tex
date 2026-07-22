@@ -27,17 +27,24 @@ For the dataset used in the experiments this cap was 600, while the minimum of w
 
 The synthetic data generation evolved while testing and generating datasets, in the end 37 different generator buckets
 were defined in the process.
-These focus on generating matrices with structural properties for which specific solver-preconditioner pairs are theoretically expected to perform well;
-the actual winner is always determined empirically by benchmarking.
-Table~\ref{tab:generator-buckets} lists all generator functions grouped by structural property.
+These focus on generating matrices with structural properties for which specific solver-preconditioner pairs are theoretically expected to perform well.
+The actual winner is always determined empirically by benchmarking.
+Table~\ref{tab:generator-buckets} lists all generator functions grouped by structural property and primary targets.
 In practice, however, this worked only partially, as even though some solver wins increased, in most cases the intended target solvers were still
 outperformed by certain more dominant solver-preconditioner pairs.
 A more systematic bucket design falls outside the scope of this thesis and these downsides are therefore accepted as limitations.
-For generators where only the size changes which solver-preconditioner pair has the highest chance of winning, different buckets
-that generate specific sizes with a certain generator function are introduced.
-If these generators produce large matrices, they have a lower chance to be used as they
-dramatically increase the runtime of the data generation.
+Where the winning pair depends primarily on matrix size rather than structure, separate buckets with the same generator function but different size ranges are used.
+Large-matrix generators are sampled with lower probability to avoid excessive data generation runtimes.
 In the current state, the generators generate matrices with $n$ ranging from 100 to 125{,}000.
+
+Regarding the benchmarking, all solver pairs are run against a matrix after its generation.
+A specific timeout is set, after which a solver pair is marked as non-converging, also if the maximum number of iterations is exceeded
+the pair is marked as non-converging.
+Some solvers do not work, or only work, on symmetric matrices. They are therefore not run on these specific ones.
+A pair is valid and gets saved with its solve time if the result is within a certain tolerance.
+The label a matrix gets in the end is only the fastest solver-preconditioner pair, the so-called winner.
+
+For each matrix, the matrix itself, the features, and all the pairs with solve time or an entry for non-convergence are stored.
 
 \begin{table}[H]
   \centering
@@ -78,14 +85,6 @@ In the current state, the generators generate matrices with $n$ ranging from 100
   \end{tabular}
 \end{table}
 
-Regarding the benchmarking, all solver pairs are run against a matrix after its generation.
-A specific timeout is set, after which a solver pair is marked as non-converging, also if the maximum number of iterations is exceeded
-the pair is marked as non-converging.
-Some solvers do not work, or only work, on symmetric matrices; they are therefore not run on these specific ones.
-A pair is valid and gets saved with its solve time if the result is within a certain tolerance.
-The label a matrix gets in the end is only the fastest solver-preconditioner pair, the so-called winner.
-
-For each matrix, the matrix itself, the features, and all the pairs with solve time or an entry for non-convergence are stored.
 
 \subsection{SuiteSparse Benchmark Matrices}\label{subsec:SuiteSparse}
 
@@ -302,7 +301,7 @@ RCM log-density modes at 128\,px.
 
 \section{Model Architecture}\label{sec:architecture}
 
-The model consists of two sub-models combined into one prediction model.
+The model consists of two sub-branches combined into one prediction model.
 The two branches are an MLP that processes previously defined matrix features, and a CNN that processes pre-rendered images.
 Outputs are then concatenated and passed to a shared classification head, which produces the probability distribution over the 19 solver-preconditioner pairs.
 Concatenation was chosen over element-wise addition as it is the more common fusion practice~\cite{baltruvsaitis2018multimodal} and gives the classification head greater freedom in weighting contributions from each branch independently.
@@ -313,7 +312,7 @@ The CNN branch supports a single image channel and a dual-channel variant that a
 
 The CNN branch accepts an image of the size $(C \times H \times W)$ as input,
 where  $C = 1$ for single-channel and $C = 2$ for dual-channel experiments,
-and $H = W \in \{64, 128\}$ depending on the image resolution.
+and $H = W$ is the image resolution in pixels (64 and 128 are used in the experiments).
 
 The branch begins with an initial convolution block, a $3 \times 3$ convolution with
 $c$ output channels, followed by batch normalisation~\cite{ioffe2015batch} and ReLU activation, and a
@@ -384,6 +383,8 @@ Batches of size 256, or in the dual-channel case 64 due to memory restrictions, 
 from the training split with shuffling.
 
 The base loss is cross-entropy over the 19 classes.
+The cross-entropy loss uses inverse-frequency class weights to give underrepresented classes equal gradient contribution despite the remaining imbalance after capping.
+Label smoothing of 0.1 is applied to the cross-entropy loss as a regularisation measure.
 In Campaigns~2 and~4 an additional convergence penalty is added:
 \[
   \mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda \sum_{k \notin \mathcal{C}(A)} \hat{p}_k
