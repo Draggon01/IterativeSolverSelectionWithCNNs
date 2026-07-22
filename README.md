@@ -264,10 +264,13 @@ C4 ensemble (four members, all 128 px):
 | MM-AutoSolver (paper, Xiong et al. 2025) | 78.54 | 62.53 |
 | C1 best: `magnitude_64` | 64.19 | 63.42 |
 | C2 best: `magnitude_64` | 64.29 | 63.38 |
-| C5 ensemble (four C4 models, 128 px) | — | **66.77** |
+| C3 best: `magnitude__signed_magnitude_64` | 66.05 | 65.32 |
+| C4 best: `magnitude__rcm_log_density_128` | 66.56 | 65.53 |
+| C5 ensemble C3 (four 64 px models) | 67.39 | 66.37 |
+| C5 ensemble C4 (four 128 px models) | 67.29 | **66.77** |
 
-The C5 ensemble surpasses the MM-AutoSolver approach by approximately 4 percentage points
-in macro F1, on a harder and more balanced dataset (9,711 matrices, capped at 600 per class).
+The best ensemble surpasses MM-AutoSolver by approximately 4 percentage points in macro F1,
+on a harder and more balanced dataset (9,711 matrices, capped at 600 per class).
 The lower accuracy relative to the paper reflects the harder dataset rather than worse prediction quality.
 
 ---
