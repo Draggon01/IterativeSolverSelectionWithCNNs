@@ -314,6 +314,15 @@ services:
       - DATA_DIR=/workspace/data
       - OUT_DIR=/workspace/viz
 
+  # Utility: measure feature extraction and image rendering times
+  timing:
+    build: ../../container
+    command: python timing_example.py
+    volumes:
+      - ./model.py:/workspace/model.py
+      - ../shared/generators.py:/workspace/generators.py
+      - ./utils/timing_example.py:/workspace/timing_example.py
+
   # TensorBoard: live loss + accuracy curves (shows all experiments)
   tensorboard:
     image: tensorflow/tensorflow:latest
