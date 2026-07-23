@@ -73,4 +73,7 @@ Finally, the current approach uses hard labels based on the fastest converging s
         embedding-based evaluation pipeline~\cite{weng2026embedding}, to measure real-world solver selection benefit.
   \item Active learning strategies that query the solver oracle only for the most
         uncertain matrices, reducing data generation cost.
+  \item Feature selection or pruning to identify a minimal subset of matrix statistics
+        that retains high prediction accuracy at reduced extraction cost, informed by the
+        per-feature timing analysis in \autoref{sec:results-inference-cost}.
 \end{itemize}
