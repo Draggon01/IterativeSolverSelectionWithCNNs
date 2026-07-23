@@ -41,7 +41,7 @@ This thesis pursues the following goals:
 \begin{enumerate}
   \item \textbf{Replication.} Re-implement MM-AutoSolver as a controlled baseline to verify and contextualize the reported results on an independently generated dataset.
   \item \textbf{Feature engineering.} Choose a different set of 14 base matrix descriptors than MM-AutoSolver and extend it to 20, measuring the impact on classification accuracy.
-  \item \textbf{Image mode study.} Train and compare 14 single-channel image representations (binary, density, log_density, magnitude, sign, symmetry, diagonal, signed\_magnitude, and their RCM-reordered counterparts) at 64\,px and 128\,px.
+  \item \textbf{Image mode study.} Train and compare 14 single-channel image representations (binary, density, log\_density, magnitude, sign, symmetry, diagonal, signed\_magnitude, and their RCM-reordered counterparts) at 64\,px and 128\,px.
   \item \textbf{Dual-channel CNN.} Fuse pairs of the best-performing modes into a two-channel input and evaluate pairwise combinations at different resolutions.
   \item \textbf{Convergence penalty.} Introduce a loss term that penalizes probability mass assigned to non-converging solvers and evaluate its effect on failure rate.
   \item \textbf{Ensemble evaluation.} Average softmax outputs from multiple top models and measure the accuracy gain over any individual model.
