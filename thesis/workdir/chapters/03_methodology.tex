@@ -89,7 +89,7 @@ For each matrix, the matrix itself, the features, and all the pairs with solve t
 \subsection{SuiteSparse Benchmark Matrices}\label{subsec:SuiteSparse}
 
 The SuiteSparse dataset generation differs only in the storage of the matrices.
-Since they are downloaded and stored as \texttt{.mtx} files, the storage of the full matrices in the HDF5 dataset file does not make sense
+Since they are downloaded and stored as \texttt{.mtx} files, the storage of the full matrices in the HDF5 dataset file is impractical
 and is therefore omitted to save space.
 A separate folder for the \texttt{.mtx} files is used as a cache, which reduces storage requirements while keeping the dataset portable.
 

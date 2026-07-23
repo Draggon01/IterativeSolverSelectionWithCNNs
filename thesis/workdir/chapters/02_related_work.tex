@@ -57,14 +57,14 @@ of PETSc solver-preconditioner configurations.
 The MM-AutoSolver~\cite{xiong2025mmautosolver} paper is the baseline and architectural reference for this thesis which proposes
 a model which combines two input streams together.
 One of them is an MLP branch evaluating 17 matrix features proposed by the paper, the other one
-is a CNN branch that reads in an $128 \times 128$ pixel density image of the sparse matrix.
-The 2 branches are then combined via element-wise addition before being applied to a shared classification head
+is a CNN branch that reads in a $128 \times 128$ pixel density image of the sparse matrix.
+The two branches are then combined via element-wise addition before being applied to a shared classification head
 which predicts one of 19 fixed solver-preconditioner pairs from the PETSc~\cite{balay2026petsc} library.
 The CNN branch of the paper uses two convolutional layers with TanH activations and $3 \times 3$ and
-$5 \times 5$ kernels respectively, trained with Adam ($\text{lr} = 10^{-3}$,256 epochs, batch size 512).
+$5 \times 5$ kernels respectively, trained with Adam ($\text{lr} = 10^{-3}$, 256 epochs, batch size 512).
 This model is evaluated against 11{,}623 matrices, including real-world application matrices from SuiteSparse~\cite{davis2011university}, FreeFEM~\cite{hecht2012freefem}, and OpenFOAM~\cite{weller1998tensorial}.
 The evaluation of the model achieves Acc\,=\,78.54\,\%, MP\,=\,63.41\,\%, MR\,=\,62.81\,\%, and F1\,=\,62.53\,\%.
-This thesis independently replicates the model proposed in the MM-AutoSolver paper on a custom dataset ~(\autoref{sec:mm-replication}) and extends
+This thesis independently replicates the model proposed in the MM-AutoSolver paper on a custom dataset~(\autoref{sec:mm-replication}) and extends
 the approach by evaluating 14 different image downsampling strategies
 (also applying the Reverse Cuthill--McKee (RCM) reordering~\cite{cuthill1969reducing} to the input matrix for some methods before rendering), dual-channel inputs and ensemble methods.
 

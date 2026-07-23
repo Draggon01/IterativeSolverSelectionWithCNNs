@@ -12,7 +12,7 @@ Detailed results and metric comparisons are evaluated in \autoref{chapter:result
 To ensure reproducibility, the whole pipeline runs within a Docker environment.
 The pipeline includes distinct scripts for data generation, model training and model evaluation.
 The training data is stored in HDF5 file format to enable fast access, and is shared across experiments unless stated otherwise.
-Its generation was performed on an AMD Ryzen AI 7 350 and an AMD Ryzen 5 1600 Six-Core, described in more detail in \autoref{sec:dataset}
+Its generation was performed on an AMD Ryzen AI 7 350 and an AMD Ryzen 5 1600 Six-Core. The dataset is described in more detail in \autoref{sec:dataset}.
 Checkpoints and logs are namespaced by experiment name and image size, allowing multiple runs to coexist without overwriting.
 The training of the model for the different experiments was done on an NVIDIA GeForce RTX 5060 Laptop GPU.
 All runs use a fixed random seed for reproducibility.

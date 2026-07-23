@@ -106,7 +106,7 @@ In Campaign~1, the binary\_64 model, for example, has a lower accuracy and only 
 the binary downsampling does not store that much valuable information when cropped to small images.
 In Campaign~2, the binary\_64 model also does not show better results, but within this campaign the density\_64 approach was more notable as it was the only one
 that dropped by over 8\%.
-Investigation showed the model stopped predicting \texttt{minres+gamg} and \texttt{fcg+gamg} entirely, which resulted in a failure rate of 0\%.
+Investigation showed the model stopped predicting \texttt{minres+gamg} and \texttt{fcg+gamg} entirely, which resulted in a per-class failure rate of 0\% for those classes.
 The convergence penalty pushed the model away from those high-failure-rate classes.
 By never predicting them it avoided failures, but at the cost of reducing their recall to 0\%.
 This shows that a low failure rate alone is not a sufficient signal and must be read together with per-class recall, indicating that the convergence penalty as currently implemented is not sufficient. This will be investigated further in \autoref{sec:results-features}.
@@ -159,7 +159,7 @@ not only provide a shift in failure rates but realistic improvement.
 
 \paragraph{Density side-effect}
 The main negative side effect in this experiment is that the \texttt{density\_64} model collapsed in accuracy, dropping to 52.63\% from previously 60.27\%.
-This loss of over 10\,\% is only observed in this model and might indicate a training instability, as the drop was not reproduced in later experiments,
+This loss of over 8\,\% is only observed in this model and might indicate a training instability, as the drop was not reproduced in later experiments,
 but may also hint that the density encoding and the penalty gradient do not interact well.
 
 \paragraph{Convergence penalty improvement}
@@ -381,7 +381,7 @@ The Campaign~4 ensemble (all 128\,px):
 achieves 67.29\% accuracy and 66.77\% F1, compared to the best individual member
 \texttt{magnitude+rcm\_log\_density\_128} (66.56\% accuracy and 65.53\% F1),
 a gain of $+0.73$\,\% in accuracy and $+1.24$\,\% in F1.
-The failure rate of 3.92\% and mean runtime ratio of 1.043$\times$ remain below or comparable to all individual members.
+The failure rate of 3.92\% and mean runtime ratio of 1.043$\times$ remain comparable to all individual members.
 
 Notably, the Campaign~4 ensemble surpasses the Campaign~3 ensemble only in F1 (66.77\% vs.\ 66.37\%),
 while trailing in accuracy (67.29\% vs.\ 67.39\%).

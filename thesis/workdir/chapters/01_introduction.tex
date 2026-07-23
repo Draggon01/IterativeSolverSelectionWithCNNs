@@ -6,7 +6,7 @@
 \section{Motivation}\label{sec:motivation}
 
 Linear systems of equations in the form $Ax=b$ arise across nearly every domain in computer science, from structural mechanics and fluid dynamics to machine learning and network analysis.
-While small systems can be solved directly with Gaussian elimination in \(\mathcal{O}(n^3)\) time, real-world problems often generate sparse matrices with thousands or millions of unknowns where direct methods become unfeasible.
+While small systems can be solved directly with Gaussian elimination in \(\mathcal{O}(n^3)\) time, real-world problems often generate sparse matrices with thousands or millions of unknowns where direct methods become infeasible.
 Such matrices are called sparse because the vast majority of their $n^2$ entries are zero, only a small fraction $\text{nnz} \ll n^2$ are non-zero.
 Iterative solvers, such as Conjugate Gradient (CG), Generalized Minimal Residual (GMRES), or Flexible Generalized Minimal Residual (FGMRES), are practical alternatives.
 They exploit sparsity and can converge in far fewer operations than direct methods, but their performance for a given problem depends on the chosen combination of solver and preconditioner.
@@ -41,7 +41,7 @@ This thesis pursues the following goals:
 \begin{enumerate}
   \item \textbf{Replication.} Re-implement MM-AutoSolver as a controlled baseline to verify and contextualize the reported results on an independently generated dataset.
   \item \textbf{Feature engineering.} Choose a different set of 14 base matrix descriptors than MM-AutoSolver and extend it to 20, measuring the impact on classification accuracy.
-  \item \textbf{Image mode study.} Train and compare 14 single-channel image representations (binary, density, magnitude, sign, symmetry, diagonal, signed\_magnitude, and their RCM-reordered counterparts) at 64\,px and 128\,px.
+  \item \textbf{Image mode study.} Train and compare 14 single-channel image representations (binary, density, log_density, magnitude, sign, symmetry, diagonal, signed\_magnitude, and their RCM-reordered counterparts) at 64\,px and 128\,px.
   \item \textbf{Dual-channel CNN.} Fuse pairs of the best-performing modes into a two-channel input and evaluate pairwise combinations at different resolutions.
   \item \textbf{Convergence penalty.} Introduce a loss term that penalizes probability mass assigned to non-converging solvers and evaluate its effect on failure rate.
   \item \textbf{Ensemble evaluation.} Average softmax outputs from multiple top models and measure the accuracy gain over any individual model.
